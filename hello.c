@@ -1,6 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
+
+#include "print.h"
+
 int main()
 {
-    printf("\nHello world\n");
+    printf("\n\tHello world\n");
+    myprint();
 }

@@ -4,7 +4,7 @@
 all: hello
 
 hello: hello.o libprint.so
-	gcc  hello.o -ldl -o hello
+	gcc  hello.o -L. -lprint -o hello
 
 hello.o: hello.c
 	gcc -fPIC -c hello.c

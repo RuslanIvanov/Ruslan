@@ -8,11 +8,11 @@ int main(int argc,char* argv[], char** env)
 
 	while(*env++) //*env != NULL
 	{
-		printf("\n%s",*env);
+		//printf("\n%s",*env);
 		char * p = strstr(*env,"PWD=");
 		if(*env==p) 
 		{
-			printf("\n current path: %s",p+4);
+			printf("\ncurrent path: %s\n",p+4);
 			break;
 		}
 	}

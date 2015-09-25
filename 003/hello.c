@@ -1,5 +1,7 @@
 
 #include "print.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 
 int main()
@@ -20,4 +22,6 @@ int main()
 	(*pmyprint)();
 
 	dlclose(library_handler);
+
+	return 0;
 }

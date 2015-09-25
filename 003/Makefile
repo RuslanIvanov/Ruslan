@@ -7,11 +7,8 @@ hello: hello.o libprint.so
 hello.o: hello.c
 	gcc -fPIC -c hello.c
 
-print.o: print.c
-	gcc -fPIC -c print.c
-
-libprint.so: print.o
-	gcc -shared -o libprint.so print.o
+libprint.so: print.c
+	gcc -fPIC -shared -o libprint.so print.c
 
 clean:
 	rm -rf *.o hello

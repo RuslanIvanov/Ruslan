@@ -1,15 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
+#include <algorithm>
+#include <list>
+using namespace std;
 
 int getppid(int);
 void listTree(int pidStart);
+void printList(list<int>&List);
 
 int main(int argc,char* argv[], char** env)
 {
 	if(argc>1)
 	{	int pid = atoi(argv[1]);
+
+		printf("\n*****************************************\n");
 		printf("\nThe parent %d is %d\n",pid,getppid(pid));
+		printf("\n*****************************************\n");
+
+		listTree(pid);
 	}
 	else 
 	{
@@ -20,14 +30,14 @@ int main(int argc,char* argv[], char** env)
 
 int getppid(int pid)
 {
-	if(pid==0) {printf("Error number pid!"); return 0;}
+	if(pid==0) {printf("Error: getppid: number pid!"); return 0;}
 
 	char dir[10]="/proc/";
 	char file[10]="/status";
 	char buf[256];
 
 	sprintf(buf,"%s%d%s",dir,pid,file);
-	printf("\nIm is finding parent in %s\n",buf);
+	//printf("\nIm is finding parent in %s\n",buf);
 
 	FILE* fd=0;
 	fd = fopen(buf,"r");
@@ -51,7 +61,7 @@ int getppid(int pid)
 
             		    if(pfind!=NULL)
             		    {	char buf[256];
-                    		printf("\nI'm find string: %s\n",pfind);
+                    		//yprintf("\nI'm find string: %s\n",pfind);
 				sscanf(bufString,"%s%d",&buf[0],&ppid);
 				//printf("\npppid = %d",ppid);
 				break;
@@ -69,5 +79,33 @@ int getppid(int pid)
 
 void listTree(int pidStart)
 {
-	
+	list<int> dirList;
+	int ppid = -1;
+
+	while(getppid(pidStart)!=0)
+	{
+		ppid = getppid(pidStart);
+		pidStart = ppid;
+		dirList.push_back(ppid);
+	}
+
+	printList(dirList);
 }
+
+
+void printList(list<int>&List)
+{
+	if(List.empty())
+	{
+		printf("\nList is empty!\n");
+		return;
+	}
+
+	list<int>::iterator iter;
+
+	for(iter=List.begin();iter!=List.end();iter++)
+	{
+		printf("\t-- %d\n",*iter);
+	}
+}
+

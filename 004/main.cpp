@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <algorithm>
 #include <list>
@@ -125,23 +128,74 @@ void getname(int pid,char* pn)
 
 void listTree(int pidStart)
 {
-	list<process> dirList;
 	int ppid = -1;
-
-	while(getppid(pidStart)!=0)
+	if(pidStart>0)
 	{
-		ppid = getppid(pidStart);
-		pidStart = ppid;
+		list<process> dirList;
 
-		process pr;
-		char name[50];
-		getname(ppid,name);
-		pr.pid=ppid;
-		strcpy(pr.name,name);
-		dirList.push_back(pr);
+		while(getppid(pidStart)!=0)
+		{
+			ppid = getppid(pidStart);
+			pidStart = ppid;
+
+			process pr;
+			char name[50];
+			getname(ppid,name);
+			pr.pid=ppid;
+			strcpy(pr.name,name);
+			dirList.push_back(pr);
+		}
+
+		printList(dirList);
+
+	}else
+	{
+		DIR *pdir;
+		struct dirent *ent;
+		pdir = opendir("/proc/");
+		if(pdir==NULL)
+		{printf ("\nError opendir proc"); return ;}
+
+		dirent *pdirent;
+		//pdirent readdir(pdir);
+
+		while(NULL != (pdirent = readdir(pdir)) )
+        	{// как понять дирректория или нет?
+			struct stat statbuf;
+			lstat( pdirent->d_name, &statbuf ); // считываем информацию о файле в структуру
+        		if (S_ISDIR( statbuf.st_mode ))
+			{ // если это директория
+			      if(strcmp( ".", pdirent->d_name ) == 0 ||
+				 strcmp( "..",pdirent->d_name ) == 0 )
+				{
+				    continue; 
+				}
+
+				int pid = atoi(pdirent->d_name);
+				if(pid==0) continue;
+
+				 list<process> dirAllList;
+
+	 			printf("\npid [%d] have a parents:",pid);
+				while(getppid(pid)!=0) //убрать в ф_ию  listTree (pid), а то что выше вынести за пределы ф. listTree
+                		{
+		                        ppid = getppid(pid);
+                		        pid = ppid;
+
+		                        process pr;
+                		        char name[50];
+		                        getname(ppid,name);
+                		        pr.pid=ppid;
+		                        strcpy(pr.name,name);
+                		        dirAllList.push_back(pr);
+
+                		}
+				printList(dirAllList);
+			}
+		}
+
+		closedir(pdir);
 	}
-
-	printList(dirList);
 }
 
 void printList(list<process>&List)

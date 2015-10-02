@@ -11,7 +11,8 @@ using namespace std;
 
 int getppid(int);
 void getname(int,char*);
-void listTree(int pidStart);
+void listTree2(int);
+void allProcesses();
 
 struct process
 {
@@ -29,16 +30,13 @@ int main(int argc,char* argv[], char** env)
 		printf("\n*****************************************\n");
 		char name[50];
 		getname(pid,name);
-		printf("\nThe parents %d-{%s} is:\n",pid,name);
-
-		listTree(pid);
-
+		printf("\nThe parents %d-{%s} is: ",pid,name);
+		listTree2(pid);
 		printf("\n*****************************************\n");
-
 	}
 	else
 	{
-	    listTree(0);
+	     allProcesses();
 	}
 	return 0;
 }
@@ -50,11 +48,15 @@ int getppid(int pid)
 	char buf[256];
 
 	sprintf(buf,"/proc/%d/status",pid);
-	//printf("\nIm is finding parent in %s\n",buf);
 
 	FILE* fd=0;
 	fd = fopen(buf,"r");
-	if(fd==NULL){printf("\nError fopen [%s]",buf); return 0;}
+	if(fd==NULL)
+	{
+		printf("\nError fopen [%s]",buf);
+		printf("\nThe process with pid %d does not exist ",pid);
+		return 0;
+	}
 
 	int ch = 0;
 	int i=0;
@@ -95,7 +97,7 @@ void getname(int pid,char* pn)
 
  	FILE* fd=0;
         fd = fopen(buf,"r");
-        if(fd==NULL){printf("\nError fopen [%s]",buf); return;}
+        if(fd==NULL){printf("\nError fopen [%s]",buf); strcpy(pn,""); return;}
 
         int ch = 0;
         int i=0;
@@ -126,15 +128,45 @@ void getname(int pid,char* pn)
         fclose(fd);
 }
 
-void listTree(int pidStart)
+void allProcesses()
+{
+	DIR *pdir;
+	struct dirent *ent;
+	pdir = opendir("/proc/");
+	if(pdir==NULL)
+	{printf ("\nError opendir proc"); return ;}
+
+	dirent *pdirent;
+
+	while(NULL != (pdirent = readdir(pdir)) )
+       	{
+		struct stat statbuf;
+		lstat( pdirent->d_name, &statbuf ); // считываем информацию о файле в структуру
+        	if (S_ISDIR( statbuf.st_mode ))
+		{ // если это директория
+		      if(strcmp( ".", pdirent->d_name ) == 0 ||
+			 strcmp( "..",pdirent->d_name ) == 0 )
+			{continue;}
+
+			int pid = atoi(pdirent->d_name);
+			if(pid==0) continue;
+
+			char name[50]; getname(pid,name);
+			printf("\nThe process '%s' [pid %d] has a parent:",name,pid);
+			listTree2(pid);
+
+		}
+	}
+	closedir(pdir);
+}
+
+void listTree2(int pidStart)
 {
 	int ppid = -1;
-	if(pidStart>0)
-	{
-		list<process> dirList;
+	list<process> dirList;
 
-		while(getppid(pidStart)!=0)
-		{
+	while(getppid(pidStart)!=0)
+	{
 			ppid = getppid(pidStart);
 			pidStart = ppid;
 
@@ -144,65 +176,17 @@ void listTree(int pidStart)
 			pr.pid=ppid;
 			strcpy(pr.name,name);
 			dirList.push_back(pr);
-		}
-
-		printList(dirList);
-
-	}else
-	{
-		DIR *pdir;
-		struct dirent *ent;
-		pdir = opendir("/proc/");
-		if(pdir==NULL)
-		{printf ("\nError opendir proc"); return ;}
-
-		dirent *pdirent;
-		//pdirent readdir(pdir);
-
-		while(NULL != (pdirent = readdir(pdir)) )
-        	{// как понять дирректория или нет?
-			struct stat statbuf;
-			lstat( pdirent->d_name, &statbuf ); // считываем информацию о файле в структуру
-        		if (S_ISDIR( statbuf.st_mode ))
-			{ // если это директория
-			      if(strcmp( ".", pdirent->d_name ) == 0 ||
-				 strcmp( "..",pdirent->d_name ) == 0 )
-				{
-				    continue; 
-				}
-
-				int pid = atoi(pdirent->d_name);
-				if(pid==0) continue;
-
-				 list<process> dirAllList;
-
-	 			printf("\npid [%d] have a parents:",pid);
-				while(getppid(pid)!=0) //убрать в ф_ию  listTree (pid), а то что выше вынести за пределы ф. listTree
-                		{
-		                        ppid = getppid(pid);
-                		        pid = ppid;
-
-		                        process pr;
-                		        char name[50];
-		                        getname(ppid,name);
-                		        pr.pid=ppid;
-		                        strcpy(pr.name,name);
-                		        dirAllList.push_back(pr);
-
-                		}
-				printList(dirAllList);
-			}
-		}
-
-		closedir(pdir);
 	}
+
+	printList(dirList);
 }
 
 void printList(list<process>&List)
 {
 	if(List.empty())
 	{
-		printf("\nList is empty!\n");
+		//printf("\nList is empty!\n");
+		printf("\nNo parent!");
 		return;
 	}
 

@@ -4,8 +4,6 @@
 
 int main(int argc,char* argv[], char** env)
 {
-	char buf[100];
-
 	while(*env++) //*env != NULL
 	{
 		//printf("\n%s",*env);

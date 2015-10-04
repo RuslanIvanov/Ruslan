@@ -25,10 +25,10 @@ int main(int argc,char* argv[], char** env)
 {
 	signal (SIGTERM, out);  
 	signal (SIGINT, out);  
-
+	printf("\n*********************************Run my bash****************************************\n");
 	while(1)
 	{	
-		printf("\nEnter name process: ");
+		printf("\nEnter the name of the program: ");
 		char bufName[256]="";
 		scanf("%s",&bufName[0]);
 
@@ -36,7 +36,7 @@ int main(int argc,char* argv[], char** env)
 		if(findPath(bufName,&bufPath[0],env)==false)
 		{
 			printf("\nNo find process ' %s '",&bufName[0]);
-		}else {	startProc(bufPath,&bufName[0]); }
+		}else {	startProc(bufPath,&bufName[0]); sleep(1);}
 
 	}
 	return 0;
@@ -61,7 +61,7 @@ int startProc(const char* path,const char* pName)
         if(!pid)// это дочерний процесс, замещаем его процессом pName
         {
 	     printf("\nI was a child process!");
-             if(execl(path,pName,"&",NULL)==-1) 
+             if(execl(path,pName,NULL)==-1) 
                 { perror("execl"); exit(0); }
 	     return 0;
 	}
@@ -74,7 +74,7 @@ int startProc(const char* path,const char* pName)
 
 	if(pid>0)
         {
-		printf("\nI'm the parent process, my 'pid' is %d", pid);
+		printf("\nI'm the parent process, I started the process with the PID is ' %d' and name is ' %s ' ", pid, pName);
 		return pid;
 	}
 }
@@ -93,8 +93,8 @@ bool findPath(const char* pName, char *findedPath, char** env)
 		}
 	}
 
-	strcat(&bufPath[0],":./:");
-	printf("\npaths: %s\n",bufPath);
+	strcat(&bufPath[0],":.:");
+	//printf("\npaths: %s\n",bufPath);
 	list<listPath> lp;
 
 	parserPath(bufPath,lp);
@@ -118,6 +118,7 @@ bool findPath(const char* pName, char *findedPath, char** env)
 			if(strcmp(dp->d_name,pName)==0)
 			{
 				strcat(findedPath,(*iter).buf);	
+				strcat(findedPath,"/");	
 				strcat(findedPath,pName);
 				isFind=true;
 				break;	

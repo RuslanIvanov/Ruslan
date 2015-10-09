@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <pthread.h>
 #include <math.h>
@@ -29,6 +30,7 @@ int main(int argc,char* argv[], char** env)
 		int n = atoi(argv[1]);// кол_во разбиений
 
 		if(n<=0){printf("\nError: number of partitions\n\n"); return 0;} 
+		if(n>300){printf("\nError: max number of partitions 300 \n\n"); return 0;} 
 
 		double h=0.0;
 		Param *pparam = NULL;

@@ -34,7 +34,7 @@ int main(int argc,char* argv[], char** env)
 		strcpy(&filename[FIFO_OUT][0],"/tmp/");
 		strcat(&filename[FIFO_IN][0],argv[1]);
 		strcat(&filename[FIFO_OUT][0],argv[2]);
-		//printf("\ncmd: argc %d ' %s ' ' %s '",argc,argv[1],argv[2]);
+		
 		printf("\nfifo in ' %s ', fifo out ' %s ', exit ' Ctrl+C '\n",&filename[FIFO_IN][0],&filename[FIFO_OUT][0]);
 
 		for(int i=0;i<2;i++)
@@ -44,41 +44,35 @@ int main(int argc,char* argv[], char** env)
 			if(rez!=0) 
 			{
 				char tmp[BUFSIZ];
+				printf("\nError mkfifo %s",&filename[i][0]); 
 				sprintf(tmp,"%s: ",&filename[i][0]);
 				perror(tmp); 
+
 				return 0;
 			}
 		}
-
-		pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY|O_NONBLOCK);
-		if(pipe_fd[FIFO_OUT]==-1) { perror(&filename[FIFO_OUT][0]); return 0;}
-
-		pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0],O_RDONLY|O_NONBLOCK);
-		if(pipe_fd[FIFO_IN]==-1) { perror(&filename[FIFO_IN][0]); return 0;}
 
 		pthread_t thId = 0;
 		pthread_create(&thId, NULL, funcThread, NULL);
 		printf("\nWait start task...");
 		sleep(1);
+
 		while(bOut==false)
 		{
+			char buf[BUFFER_SIZE];
+			pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY);
+			if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
+
 			printf("\nwrite: ");
 			scanf(buf,"%s");
 			int rez = write(pipe_fd[FIFO_OUT],buf,BUFFER_SIZE);
 			if(rez==-1) {printf("Write error on pipeout");}
 			printf("\nwrited...");
-			rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
-			if(rez==-1) {printf("Read error on pipein");}
-			printf("\nread: %s",buf);
-			
+			close(pipe_fd[FIFO_OUT]);
+	
 		}
 
 		pthread_join(thId,NULL);
-
-		close(pipe_fd[FIFO_OUT]);
-		close(pipe_fd[FIFO_IN]);
-		unlink(&filename[FIFO_OUT][0]);
-		unlink(&filename[FIFO_IN][0]);
 	 	
 	}else {printf("\nError command string! Enter: 'pipein' 'pipeout'.\n");}
 	printf("\n\nExit...\n");
@@ -87,28 +81,21 @@ int main(int argc,char* argv[], char** env)
 
 void * funcThread(void* )
 {
-	printf("\nRUN TASK");
-	pipe_fd[FIFO2_OUT] = open(&filename[FIFO_OUT][0],O_RDONLY|O_NONBLOCK);
-	if(pipe_fd[FIFO2_OUT]==-1) { perror(&filename[FIFO_OUT][0]); return 0;}
-
-	pipe_fd[FIFO2_IN] = open(&filename[FIFO_IN][0], O_WRONLY|O_NONBLOCK);
-	if(pipe_fd[FIFO2_IN]==-1) { perror(&filename[FIFO_IN][0]); return 0;}
+	printf("\nRUN TASK READ");
 
 	while(bOut==false)
-		{
-			char bufTh[BUFFER_SIZE];
-			int rez=read(pipe_fd[FIFO2_OUT],bufTh,BUFFER_SIZE);
-			if(rez==-1) {printf("Read error on pipeout");}
-			printf("\n\tread: %s",bufTh);
+	{
+		char buf[BUFFER_SIZE];
+		pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0],O_RDONLY);
+		if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
 			
-			printf("\n\twrite: ");
-			scanf(bufTh,"%s");
-			rez = write(pipe_fd[FIFO2_IN],bufTh,BUFFER_SIZE);
-			if(rez==-1) {printf("Write error on pipein");}
-			printf("\nwrited thread...");
-		}
-	close(pipe_fd[FIFO2_OUT]);
-	close(pipe_fd[FIFO2_IN]);
+		int rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
+		if(rez==-1) {printf("Read error on pipein");}
+		printf("\nread: %s",buf);
+	
+		close(pipe_fd[FIFO_IN]);
+	}
+	
 	printf("\nEXIT TASK");
 	return 0;
 }
@@ -119,6 +106,9 @@ void out(int sig)
 	{
 		printf("\nGoodbye chat(signal %d)\n",sig);
 		
+		unlink(&filename[FIFO_OUT][0]);
+		unlink(&filename[FIFO_IN][0]);
+
 		bOut=true;
 			
 	}

@@ -60,15 +60,16 @@ int main(int argc,char* argv[], char** env)
 	while(bOut==false)
 	{
 	    char buf[BUFFER_SIZE];
-	    pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY | O_NONBLOCK);
+	    pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY /*| O_NONBLOCK*/);
 	    if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
-		
+
 	    printf("\nwrite: ");
-	    gets(&buf[0]);
+	    gets(&buf[0]); 
 	    //scanf("%s",&buf[0]);
-	    int rez = write(pipe_fd[FIFO_OUT],buf,BUFFER_SIZE);
+	    int rez=0;
+	    rez = write(pipe_fd[FIFO_OUT],buf,BUFFER_SIZE);
 	    if(rez==-1) {printf("Write error on pipeout");}
-	
+
 	    close(pipe_fd[FIFO_OUT]);
 
 	}
@@ -78,8 +79,8 @@ int main(int argc,char* argv[], char** env)
     }else {printf("\nError command string! Enter: 'pipein' 'pipeout'.\n");}
     printf("\n\nExit...\n");
 
-    unlink(&filename[FIFO_OUT][0]);
-    unlink(&filename[FIFO_IN][0]);
+    //unlink(&filename[FIFO_OUT][0]);
+    //unlink(&filename[FIFO_IN][0]);
     return 0;
 }
 
@@ -93,9 +94,14 @@ void * funcThread(void* )
 	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0],O_RDONLY);
 	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
     
-	int rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
-	if(rez==-1) {printf("Read error on pipein");}
-	printf("\n\tread: %s",buf);
+	int rez=0;
+	do
+	{
+	    rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
+	    if(rez==-1) {printf("Read error on pipein");}
+	
+	    printf("\n\tread[%d]: %s",rez,buf);
+	}while(rez>0);
 	
 	close(pipe_fd[FIFO_IN]);
     }

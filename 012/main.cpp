@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include <vector>
 
-//th1 - write 1; th2 - write 0;  for -read 
+//th1 - write 1; th2 - read 0;  for -read count
 using namespace std;
 
 vector <int> v;
@@ -28,7 +28,6 @@ int main(int argc,char* argv[], char** env)
 	    int nr =  atoi(argv[1]);
 	    int nw =  atoi(argv[2]);
 	    int max = atoi(argv[3]);
-
 	   
 	    pthread_mutex_init(&mutex, NULL);
 
@@ -36,34 +35,35 @@ int main(int argc,char* argv[], char** env)
 	    pthread_t* thId= new pthread_t[nr+nw];
 
 	    for(int i=0;i<nw;i++)
-	    pthread_create(thId+i, NULL, funcThreadW, &i);
+	    pthread_create(thId+i, NULL, funcThreadW, (void*)i);
 	
 	    for(int i=nw;i<nr+nw;i++)
-	    pthread_create(thId+i, NULL, funcThreadR, &i);
+	    pthread_create(thId+i, NULL, funcThreadR, (void*)i);
 
 	    while(bOut==false)
 	    {
 	   
-	    	printf("\nvector has 1: \n");
+	    	printf("\nvector has size %d: \n",v.size());
 		int count1=0;
 		pthread_mutex_lock(&mutex);
 	    	for(int vi=0;vi<v.size();vi++)
-	    	{	
+	    	{
 			if(v[vi]==1) count1++;
 			//printf("%d.",v[vi]);
 
 	    	}
 		pthread_mutex_unlock(&mutex);
-		printf("%d.",count1);
+		printf("num 1: %d.",count1);
+		sleep(1);
 	    }
 
 	    for(int i=0;i<(nr+nw);i++)
 		pthread_join(thId[i],NULL);
 
 	    pthread_mutex_destroy(&mutex);
-	
-		delete [] thId;
-	}
+
+	    delete [] thId;
+	}else {printf("\n Error. Please, set command string 'nr' 'nw' 'maxth'");}
 	printf("\n\nExit...\n");
 
     return 0;
@@ -71,35 +71,34 @@ int main(int argc,char* argv[], char** env)
 
 void * funcThreadW(void* pi)
 {
-	int* pipi = (int*)pi;
-	printf("\nRUN TASK READ %d",*pipi);
+	int pipi = (int)pi;
+	printf("\nRUN TASK WRITE %d",pipi);
 	while(bOut==false)
 	{
 	    pthread_mutex_lock(&mutex);
-	//    for(int vi=0;vi<v.size();vi++)
 	    v.push_back(1);
 	    pthread_mutex_unlock(&mutex);
+	   sleep(1);
 	}
-	printf("\nEXIT TASK %d",*pipi);
+	printf("\nEXIT TASK %d",pipi);
 	return 0;
 }
 
 void * funcThreadR(void* pi)
 {
-    int* pipi = (int*)pi;
-    printf("\nRUN TASK READ %d",*pipi);
+    int pipi = (int)pi;
+    printf("\nRUN TASK READ %d",pipi);
     while(bOut==false)
     {
 	pthread_mutex_lock(&mutex);
-	//for(int vi=0;vi<v.size();vi++)
-	//{
-		//if(v[vi]==1)
-	    	//	v[vi]=0;
+
+	if(v.empty()==false)
 		v.pop_back();
-	//}
+
 	pthread_mutex_unlock(&mutex);
+	sleep(1);
     }
-    printf("\nEXIT TASK %d",*pipi);
+    printf("\nEXIT TASK %d",pipi);
     return 0;
 }
 

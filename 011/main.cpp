@@ -18,7 +18,7 @@ int pipe_fd[2];
 char filename[2][BUFSIZ];
 void out(int sig=0);
 void * funcThread(void*);
-bool bOut=false;
+bool bOut = false;
 
 int main(int argc,char* argv[], char** env)
 {
@@ -62,13 +62,13 @@ int main(int argc,char* argv[], char** env)
 	    char buf[BUFFER_SIZE];
 	    pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY | O_NONBLOCK);
 	    if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
-
+		
 	    printf("\nwrite: ");
 	    gets(&buf[0]);
 	    //scanf("%s",&buf[0]);
 	    int rez = write(pipe_fd[FIFO_OUT],buf,BUFFER_SIZE);
 	    if(rez==-1) {printf("Write error on pipeout");}
-
+	
 	    close(pipe_fd[FIFO_OUT]);
 
 	}
@@ -92,11 +92,11 @@ void * funcThread(void* )
 	char buf[BUFFER_SIZE];
 	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0],O_RDONLY);
 	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
-
+    
 	int rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
 	if(rez==-1) {printf("Read error on pipein");}
 	printf("\n\tread: %s",buf);
-
+	
 	close(pipe_fd[FIFO_IN]);
     }
 

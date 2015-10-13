@@ -109,7 +109,7 @@ void out(int sig)
 {
     if(sig==SIGTERM || sig == SIGINT)
     {
-	printf("\nGoodbye chat(signal %d)\n",sig);
+	printf("\nGoodbye (signal %d)\n",sig);
 	bOut=true;
     }
 }

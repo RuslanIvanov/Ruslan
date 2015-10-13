@@ -23,12 +23,13 @@ void * funcThreadR(void* pi);
 int main(int argc,char* argv[], char** env)
 {
 	signal (SIGTERM, out);
+	signal (SIGINT, out);
 	if(argc>1 && argc<=4)
 	{
 	    int nr =  atoi(argv[1]);
 	    int nw =  atoi(argv[2]);
 	    int max = atoi(argv[3]);
-	   
+ 
 	    pthread_mutex_init(&mutex, NULL);
 
 	    v.reserve(max);
@@ -36,14 +37,14 @@ int main(int argc,char* argv[], char** env)
 
 	    for(int i=0;i<nw;i++)
 	    pthread_create(thId+i, NULL, funcThreadW, (void*)i);
-	
+
 	    for(int i=nw;i<nr+nw;i++)
 	    pthread_create(thId+i, NULL, funcThreadR, (void*)i);
 
 	    while(bOut==false)
 	    {
-	   
-	    	printf("\nvector has size %d: \n",v.size());
+  
+	    	printf("\nvector has size %d",v.size());
 		int count1=0;
 		pthread_mutex_lock(&mutex);
 	    	for(int vi=0;vi<v.size();vi++)
@@ -52,9 +53,11 @@ int main(int argc,char* argv[], char** env)
 			//printf("%d.",v[vi]);
 
 	    	}
+
 		pthread_mutex_unlock(&mutex);
-		printf("num 1: %d.",count1);
 		sleep(1);
+		printf("\nnumber '1': %d.",count1);
+
 	    }
 
 	    for(int i=0;i<(nr+nw);i++)
@@ -78,7 +81,7 @@ void * funcThreadW(void* pi)
 	    pthread_mutex_lock(&mutex);
 	    v.push_back(1);
 	    pthread_mutex_unlock(&mutex);
-	   sleep(1);
+	    sleep(1);
 	}
 	printf("\nEXIT TASK %d",pipi);
 	return 0;
@@ -93,7 +96,7 @@ void * funcThreadR(void* pi)
 	pthread_mutex_lock(&mutex);
 
 	if(v.empty()==false)
-		v.pop_back();
+	   v.pop_back();
 
 	pthread_mutex_unlock(&mutex);
 	sleep(1);
@@ -104,7 +107,7 @@ void * funcThreadR(void* pi)
 
 void out(int sig)
 {
-    if(sig==SIGTERM)
+    if(sig==SIGTERM || sig == SIGINT)
     {
 	printf("\nGoodbye chat(signal %d)\n",sig);
 	bOut=true;

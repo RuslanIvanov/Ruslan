@@ -8,6 +8,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 void out(int sig=0);
 void * funcThread(void*);
@@ -22,10 +24,10 @@ int main(int argc,char* argv[], char** env)
 
     if(argc==3)
     {
-	char buf[BUFFER_SIZE];
+	char buf[BUFSIZ];
 
-	port[0] = atoi(argv[1]);
-	port[1] = atoi(argv[2]);
+	ports[0] = atoi(argv[1]);
+	ports[1] = atoi(argv[2]);
 
 	printf("\nfifo localport ' %s ', fifo remoteport ' %s ', exit ' Ctrl+C '\n",argv[1],argv[2]);
 
@@ -33,7 +35,7 @@ int main(int argc,char* argv[], char** env)
 	pthread_create(&thId, NULL, funcThread, NULL);
 	printf("\nWait start task...");
 	sleep(1);
-		
+
 	int sockfd = socket(AF_INET, SOCK_DGRAM ,0);
 	if(sockfd==-1)
 	{
@@ -43,27 +45,25 @@ int main(int argc,char* argv[], char** env)
 
 	memset(&dest_addr, 0, sizeof(sockaddr_in));
 
-        dest_addr.sa_family = AF_INET;
-	dest_addr.sinport =  htons(port[1]); 
-	dest_addr.s_addr = htonl(iplocalhost);
+        dest_addr.sin_family = AF_INET;
+	dest_addr.sin_port =  htons(ports[1]); 
+	dest_addr.sin_addr.s_addr  = htonl(INADDR_LOOPBACK);
 	
-	strncpy(addr.sun_path, lport, sizeof(addr.sun_path) - 1);
-
-	int rez = bind(sockfd,&dest_addr,sizeof(struct sockaddr_in));
-	if(rez!=0){perror("bind: "); return 0;}
-	
-	while(bout==false)
+	while(bOut==false)
 	{
-		char buf[BUFSIZ] = '\0';
-		printf("\nsend msg");
+		char buf[BUFSIZ] = {'\0'};
+		printf("\nsend msg: ");
 		gets(buf);
 
-		ssize_t nsend = sendto(sockfd, buf, sizeof(buf),0, &dest_addr, sizeof(struct sockaddr_in));
+		ssize_t nsend = sendto(sockfd, buf, sizeof(buf),0,(struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in));
+	
+		printf(" sended[%d]",strlen(buf));
 	}
 
+	close(sockfd);
 	pthread_join(thId,NULL);
  
-    }else {printf("\nError command string! Enter: 'pipein' 'pipeout'.\n");}
+    }else {printf("\nError command string! Enter: 'port send' 'port recv'.\n");}
     printf("\n\nExit...\n");
    
     return 0;
@@ -71,11 +71,37 @@ int main(int argc,char* argv[], char** env)
 
 void * funcThread(void* )
 {
-    printf("\nRUN TASK READ");
-  
+    	printf("\nRUN TASK READ");
+   	char buf[BUFSIZ]={'\n'};
+	
+	int sockfd = socket(AF_INET, SOCK_DGRAM ,0);
+	if(sockfd==-1)
+	{
+		perror("socket thread:");return 0;
+	}
+	struct sockaddr_in addr;
 
-    printf("\nEXIT TASK");
-    return 0;
+	memset(&addr, 0, sizeof(sockaddr_in));
+
+        addr.sin_family = AF_INET;
+	addr.sin_port =  htons(ports[0]); 
+	addr.sin_addr.s_addr  = htonl(INADDR_LOOPBACK);
+
+	if(bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    	{
+        	perror("bind");
+        	return 0;
+    	}
+   	while(bOut == false)
+   	{
+		int rez = recvfrom(sockfd, buf, BUFSIZ, 0, NULL, NULL);
+        	buf[rez] = '\0';
+		if(rez>0)
+        	printf("\nrecv[%d]: %s",strlen(buf),buf);
+   	}
+	close(sockfd);
+    	printf("\nEXIT TASK");
+    	return 0;
 }
 
 void out(int sig)

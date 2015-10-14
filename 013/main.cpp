@@ -15,7 +15,7 @@ void out(int sig=0);
 void * funcThread(void*);
 bool bOut = false;
 int ports[2];
-char iplocalhost[]="127.0.0.1";
+
 int main(int argc,char* argv[], char** env)
 {
 
@@ -48,16 +48,20 @@ int main(int argc,char* argv[], char** env)
         dest_addr.sin_family = AF_INET;
 	dest_addr.sin_port =  htons(ports[1]); 
 	dest_addr.sin_addr.s_addr  = htonl(INADDR_LOOPBACK);
-	
+
 	while(bOut==false)
 	{
-		char buf[BUFSIZ] = {'\0'};
-		printf("\nsend msg: ");
-		gets(buf);
+		char buf[BUFSIZ] = {'H','i','\0'};
 
-		ssize_t nsend = sendto(sockfd, buf, sizeof(buf),0,(struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in));
-	
-		printf(" sended[%d]",strlen(buf));
+		printf("\nsend msg: ");
+		fgets(buf,BUFSIZ,stdin);
+
+		int i = strlen(buf)-1;
+		if(buf[i] == '\n') buf[i]= '\0';
+
+		ssize_t nsend = sendto(sockfd, buf, i, MSG_DONTWAIT,(struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in));
+
+		printf(" sended[%d](%d)\n",strlen(buf),nsend);
 	}
 
 	close(sockfd);
@@ -73,7 +77,7 @@ void * funcThread(void* )
 {
     	printf("\nRUN TASK READ");
    	char buf[BUFSIZ]={'\n'};
-	
+
 	int sockfd = socket(AF_INET, SOCK_DGRAM ,0);
 	if(sockfd==-1)
 	{
@@ -94,10 +98,14 @@ void * funcThread(void* )
     	}
    	while(bOut == false)
    	{
-		int rez = recvfrom(sockfd, buf, BUFSIZ, 0, NULL, NULL);
-        	buf[rez] = '\0';
-		if(rez>0)
-        	printf("\nrecv[%d]: %s",strlen(buf),buf);
+		int rez=0;
+		do
+		{
+			rez = recvfrom(sockfd, buf, BUFSIZ, 0, NULL, NULL);
+        		buf[rez] = '\0';
+			printf("\nrecv[%d]: %s",strlen(buf),buf);
+		}
+		while(rez>0);
    	}
 	close(sockfd);
     	printf("\nEXIT TASK");
@@ -114,3 +122,4 @@ void out(int sig)
 	exit(0);
     }
 }
+

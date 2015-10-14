@@ -61,7 +61,7 @@ int main(int argc,char* argv[], char** env)
 
 		ssize_t nsend = sendto(sockfd, buf, i, MSG_DONTWAIT,(struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in));
 
-		printf(" sended[%d]\n",nsend);
+		printf(" sended[%d]\n",,nsend);
 	}
 
 	close(sockfd);

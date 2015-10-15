@@ -47,13 +47,16 @@ int main(int argc,char* argv[], char** env)
 
         dest_addr.sin_family = AF_INET;
 	dest_addr.sin_port =  htons(ports[1]); 
-	dest_addr.sin_addr.s_addr  = htonl(INADDR_LOOPBACK);
+	dest_addr.sin_addr.s_addr  = htonl(INADDR_BROADCAST);
+	
+	const int optval = 1;
+	setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval));
 
 	while(bOut==false)
 	{
 		char buf[BUFSIZ] = {'\0'};
 
-		printf("\nsend msg: ");
+		printf("\nsend msg (broadcast): ");
 		fgets(buf,BUFSIZ,stdin);
 
 		int i = strlen(buf)-1;
@@ -61,15 +64,15 @@ int main(int argc,char* argv[], char** env)
 
 		ssize_t nsend = sendto(sockfd, buf, i, MSG_DONTWAIT,(struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in));
 
-		printf(" sended[%d]\n",,nsend);
+		printf(" sended[%d]\n",nsend);
 	}
 
 	close(sockfd);
 	pthread_join(thId,NULL);
- 
+
     }else {printf("\nError command string! Enter: 'port send' 'port recv'.\n");}
     printf("\n\nExit...\n");
-   
+
     return 0;
 }
 
@@ -89,7 +92,13 @@ void * funcThread(void* )
 
         addr.sin_family = AF_INET;
 	addr.sin_port =  htons(ports[0]); 
-	addr.sin_addr.s_addr  = htonl(INADDR_LOOPBACK);
+	addr.sin_addr.s_addr  = htonl(INADDR_ANY);
+
+	//const int optval = 1;
+        //setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval));
+
+	int optval = 1;
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 
 	if(bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     	{

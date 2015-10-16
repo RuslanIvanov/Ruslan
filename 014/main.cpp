@@ -94,9 +94,6 @@ void * funcThread(void* )
 	addr.sin_port =  htons(ports[0]); 
 	addr.sin_addr.s_addr  = htonl(INADDR_ANY);
 
-	//const int optval = 1;
-        //setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &optval, sizeof(optval));
-
 	int optval = 1;
 	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 

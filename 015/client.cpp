@@ -16,6 +16,7 @@ char nameClient[BUFSIZ];
 unsigned int port;
 void out(int sig=0);
 bool bOut = false;
+int sockfd;
 
 int main(int argc, char* argv[])
 {
@@ -27,7 +28,7 @@ int main(int argc, char* argv[])
     memset(&addr,0,sizeof(struct sockaddr_in));
     memset(&adrDst,0,sizeof(struct in_addr));
 
-    if(argc==3)
+    if(argc>1 && argc<=4)
     {
 	if(inet_pton(AF_INET, argv[1],(void*)&adrDst)<=0)
 	{perror("Error ip: "); return 0;}
@@ -39,16 +40,20 @@ int main(int argc, char* argv[])
     	addr.sin_port = htons(port); 
 	addr.sin_addr = adrDst;
 	strcpy(nameClient,argv[3]); 
-    }else { printf("\nSet command string: 'ip-addres' 'port' 'name'"); return 0; }
+    }else { printf("\nSet command string: 'ip-addres' 'port' 'name'\n"); return 0; }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if(sockfd < 0)
     {
         perror("socket");
         return 0;
     }
+	
+//	int optval = 1;
+ //       setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 
+    printf("\nWait client ' %s ' connect...", nameClient);
     if(connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         perror("connect");
@@ -66,7 +71,8 @@ int main(int argc, char* argv[])
 
 		if(buf[i] == '\n') buf[i]= '\0';
 
-    		send(sockfd, buf, sizeof(buf), 0);
+    		send(sockfd, buf, strlen(buf), 0);
+
     		recv(sockfd, buf, sizeof(buf), 0);
 		
 		printf("\n\tread msg: %s",buf);		
@@ -74,7 +80,7 @@ int main(int argc, char* argv[])
 
     shutdown(sockfd, 2);
     close(sockfd);
-
+    printf("\nExit client ' %s \n",nameClient);
     return 0;
 }
 
@@ -84,5 +90,8 @@ void out(int sig)
     {
 	printf("\nGoodbye ' %s '\n",nameClient);
 	bOut=true;
+	shutdown(sockfd, 2);
+	close(sockfd);
+	exit(0);
     }
 }

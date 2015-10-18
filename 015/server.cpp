@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     memset(&addr,0,sizeof(struct sockaddr_in));
     memset(&addrCli,0,sizeof(struct sockaddr_in)*MAX_CONNECT);
 
-    if(argc==2)
+    if(argc>1 && argc<=3)
     {
 	port = atoi(argv[1]);
 	if(port<=0){printf("\nError number port"); return 0;}
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     	addr.sin_port = htons(port); 
 	
 	strcpy(nameServ,argv[2]); 
-    }else { printf("\nSet command string: 'port' 'name'"); return 0; }
+    }else { printf("\nSet command string: 'port' 'name'\n"); return 0; }
 
     int sock, listener;
 
@@ -66,7 +66,10 @@ int main(int argc, char* argv[])
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr =htonl(INADDR_LOOPBACK);// htonl(INADDR_ANY);
+
+   int optval = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
@@ -81,6 +84,7 @@ int main(int argc, char* argv[])
 	if(iConnect>=MAX_CONNECT) continue;
 
 	int nAddrCli=0;
+	printf("\nServer wait connect...");
         sock = accept(listener, (struct sockaddr*)&addrCli[iConnect], (socklen_t *)&nAddrCli);
         if(sock < 0)
         {
@@ -88,7 +92,7 @@ int main(int argc, char* argv[])
             return 0;
         }
 	
-	thId[iConnect] = pthread_create(&thId[iConnect], NULL, funcThread, &param[iConnect]);
+	pthread_create(&thId[iConnect], NULL, funcThread, &param[iConnect]);
 
 	iConnect++;
       
@@ -109,6 +113,7 @@ void * funcThread(void* pVoid)
 	int bytes_read=0;
 	Param *pparam = (Param*)pVoid;
 
+	printf("\nSTART TASK");
 	while(bOut==false)
         {
 	    char buf[BUFSIZ]={'\0'};
@@ -128,5 +133,6 @@ void out(int sig)
     {
 	printf("\nGoodbye server'\n");
 	bOut=true;
+	exit(0);
     }
 }

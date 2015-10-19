@@ -37,7 +37,10 @@ Param param[MAX_CONNECT];
 pthread_t thId[MAX_CONNECT];
 int iConnect;
 void listConnect(const char* bufIn, vector<string>& vc);
-void listMsg(const char* bufIn, vector<string>& vc);
+void listMsg(/*const*/ char* bufIn, vector<string>& vc);
+int getCmd(const char* bufIn);
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char* argv[])
 {
@@ -59,6 +62,8 @@ int main(int argc, char* argv[])
     	addr.sin_port = htons(port); 
 	
 	strcpy(nameServ,argv[2]); 
+
+	 pthread_mutex_init(&mutex, NULL);
     }else { printf("\nSet command string: 'port' 'name'\n"); return 0; }
 
     int sock, listener;
@@ -100,7 +105,7 @@ int main(int argc, char* argv[])
             perror("accept");
             return 0;
         }
-	printf("\nServer connected!");
+	printf("\nServer connected %d!",iConnect+1);
 	param[iConnect].sockTh = sock;
 	param[iConnect].addr = addrCli[iConnect];
 	param[iConnect].n = nAddrCli;  
@@ -116,6 +121,7 @@ int main(int argc, char* argv[])
 		pthread_join(thId[i],NULL);
 		pthread_cancel(thId[i]);
 	}
+	pthread_mutex_destroy(&mutex);
 
     return 0;
 }
@@ -131,38 +137,75 @@ void * funcThread(void* pVoid)
 	    char buf[BUFSIZ]={'\0'};
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
             if(bytes_read <= 0) continue;
-//mutex
+
+	    pthread_mutex_lock(&mutex);
 	    listConnect(buf,v_connect);
-	    listMsg(buf,v_msg);
-//mutex
-	
-	    //выдавать послед. 10 из списка,	
-	    printf("\nserver read[%d]: %s",bytes_read,buf);
-	    if(v_msg.empty()==false)
+		
+ 	    int cmd = getCmd(buf);
+	    if(cmd == 0)
 	    {
-	    	vector<string>::reverse_iterator riter = v_msg.rbegin();
-	    	for(int i=0;riter!=v_msg.rend() && i<10;i++,++riter)	
-             	{
-			char tmp[BUFSIZ];
-			//strcpy(tmp,(*riter).c_str());
-			sprintf(tmp,"%s\n",(*riter).c_str());
-			send(pparam->sockTh, tmp, strlen(tmp)+1, 0);
-			printf("\nsend tmp:%s",tmp);
+		listMsg(buf,v_msg);
+	    }
+
+	    if(cmd == 1) 
+	    {
+		for(int i=0;i<v_connect.size();i++)
+	    	{    		
+			send(pparam->sockTh, v_connect[i].c_str(), strlen(v_connect[i].c_str())+1, 0);
 	    	}
 	    }
+
+	    if(cmd == 2)
+	    {	
+	    	//выдавать послед. 10 из списка,	
+	    	printf("\nserver read[%d]: %s",bytes_read,buf);
+	    	if(v_msg.empty()==false)
+	    	{
+	    		vector<string>::reverse_iterator riter = v_msg.rbegin();
+	    		for(int i=0;riter!=v_msg.rend() && i<10;i++,++riter)	
+             		{
+				send(pparam->sockTh, (*riter).c_str(), strlen((*riter).c_str())+1, 0);
+	    		}
+	    	}
+	     }
+	     pthread_mutex_unlock(&mutex);
         }
     
         close(pparam->sockTh);
 	return 0;
 }
 
+int getCmd(const char* bufIn)
+{
+	int i=0; 
+	char tmp[BUFSIZ]= {'\0'};
+	char  *p = strstr(tmp,"$C=");
+	p=p+3;
+        while(p[i]!='\0')
+        {
+		tmp[i]=p[i];
+                if(tmp[i]==':')
+                {
+                        tmp[i]='\0';
+                        if(strcmp(tmp,"cln")) return 1;
+			if(strcmp(tmp,"msg10")) return 2;
+                }
+		
+                i++;
+        }
+
+	return 0;
+}
 
 void listConnect(const char* bufIn, vector<string>& vc)
 {
-        int i=0; char tmp[BUFSIZ];
-	strcpy(tmp,bufIn);
-        while(tmp[i]!='\0')
+        int i=0; 
+	char tmp[BUFSIZ]= {'\0'};
+	char  *p = strstr(tmp,"$N=");
+	p=p+3;
+        while(p[i]!='\0')
         {
+		tmp[i]=p[i];
                 if(tmp[i]==':')
                 {
                         tmp[i]='\0';
@@ -177,15 +220,18 @@ void listConnect(const char* bufIn, vector<string>& vc)
 			{vc.push_back(str); printf("\nadd: %s",str.c_str());}
 			break;
                 }
-
+		
                 i++;
         }
 }
 
-void listMsg(const char* bufIn, vector<string>& vc)
+void listMsg(/*const*/ char* bufIn, vector<string>& vc)
 {
-	string str(bufIn);
+	char  *p = strstr(&bufIn[0],"$M=");
+	p=p+3;
+	string str(p);
         vc.push_back(str);
+	printf("\nserver chat: %s",bufIn);
 }
 
 void out(int sig)
@@ -199,6 +245,7 @@ void out(int sig)
 		close(thId[i]);	
 		thId[i]=0;
 	}
+	pthread_mutex_destroy(&mutex);
 	exit(0);
     }
 }

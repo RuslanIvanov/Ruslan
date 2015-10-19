@@ -70,19 +70,25 @@ int main(int argc, char* argv[])
     {
 		char buf[BUFSIZ] = {'\0'};
 		char bufout[BUFSIZ] = {'\0'};
-
-		printf("\nsend msg client  ' %s ': ",nameClient);
-		fgets(buf,BUFSIZ,stdin);
-		int i = strlen(buf)-1;
-		if(buf[i] == '\n') buf[i]= '\0';
-		sprintf(bufout,"%s:%s",nameClient,buf);
+		const char *cmd[3]= {"","cli","msg10"};
+		int indCmd=0;	
+		printf("\nMenu");
+		printf("\n\tget names clients - enter 1;");
+		printf("\n\tget last ten messages - enter 2;");
+		printf("\n\tsend message - enter 0;");
+		scanf("%d",&indCmd);
+		if(indCmd==0)
+		{
+			printf("\nmsg ' %s ': ",nameClient);
+			fgets(buf,BUFSIZ,stdin);
+			int i = strlen(buf)-1;
+			if(buf[i] == '\n') buf[i]= '\0';
+			sprintf(bufout,"$N=%s:$C=%s:$M=%s",nameClient,cmd[indCmd],buf);
+		}else if(indCmd==1 || indCmd==2)
+			{sprintf(bufout,"$N=%s:$C=%s:$M=",nameClient,cmd[indCmd]);}
+		else {printf("\nError command..."); continue;}
 
     		send(sockfd, bufout, strlen(bufout), 0);
-
-		//char bufin[BUFSIZ] = {'\0'};
-    		//int rez = recv(sockfd, bufin, sizeof(bufin), 0);
-
-		//printf("\n\tread msg[%d]: %s",rez,bufin);
     }
 
     shutdown(sockfd, 2);

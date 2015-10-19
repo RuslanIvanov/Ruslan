@@ -17,6 +17,8 @@ unsigned int port;
 void out(int sig=0);
 bool bOut = false;
 int sockfd;
+pthread_t thId = 0;
+void * funcThread(void*);
 
 int main(int argc, char* argv[])
 {
@@ -51,6 +53,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    pthread_create(&thId, NULL, funcThread, NULL);
+
     int rez=-1;
     do
     {	
@@ -75,16 +79,39 @@ int main(int argc, char* argv[])
 
     		send(sockfd, bufout, strlen(bufout), 0);
 
-		/*char bufin[BUFSIZ] = {'\0'};
-    		recv(sockfd, bufin, sizeof(bufin), 0);
-		
-		printf("\n\tread msg: %s",bufin);*/		
+		//char bufin[BUFSIZ] = {'\0'};
+    		//int rez = recv(sockfd, bufin, sizeof(bufin), 0);
+
+		//printf("\n\tread msg[%d]: %s",rez,bufin);
     }
 
     shutdown(sockfd, 2);
     close(sockfd);
+    pthread_cancel(thId);
+    pthread_join(thId,NULL);
     printf("\nExit client ' %s \n",nameClient);
     return 0;
+}
+
+void * funcThread(void* )
+{
+    	printf("\nRUN TASK READ");
+   	char bufin[BUFSIZ]={'\n'};
+	
+   	while(bOut == false)
+   	{
+		int rez=0;
+		do
+		{
+			rez = recv(sockfd, bufin, sizeof(bufin), 0);
+        		bufin[rez] = '\0';
+			printf("\nrecv[%d]: %s",strlen(bufin),bufin);
+		}
+		while(rez>0);
+   	}
+	
+    	printf("\nEXIT TASK");
+    	return 0;
 }
 
 void out(int sig)

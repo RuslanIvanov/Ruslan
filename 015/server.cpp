@@ -138,15 +138,16 @@ void * funcThread(void* pVoid)
 	
 	    //выдавать послед. 10 из списка,	
 	    printf("\nserver read[%d]: %s",bytes_read,buf);
-	    if(!v_msg.empty())
+	    if(v_msg.empty()==false)
 	    {
 	    	vector<string>::reverse_iterator riter = v_msg.rbegin();
-	    	for(int i=0;riter!=v_msg.rend() || i<10;i++,++riter)	
+	    	for(int i=0;riter!=v_msg.rend() && i<10;i++,++riter)	
              	{
 			char tmp[BUFSIZ];
 			//strcpy(tmp,(*riter).c_str());
 			sprintf(tmp,"%s\n",(*riter).c_str());
 			send(pparam->sockTh, tmp, strlen(tmp)+1, 0);
+			printf("\nsend tmp:%s",tmp);
 	    	}
 	    }
         }
@@ -173,7 +174,7 @@ void listConnect(const char* bufIn, vector<string>& vc)
 				if(vc[i]==str){b=true; break;}
 			}
 			if(b==false)
-                        vc.push_back(str);
+			{vc.push_back(str); printf("\nadd: %s",str.c_str());}
 			break;
                 }
 

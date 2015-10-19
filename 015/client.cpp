@@ -38,7 +38,8 @@ int main(int argc, char* argv[])
 
 	addr.sin_family = AF_INET;
     	addr.sin_port = htons(port); 
-	addr.sin_addr = adrDst;
+	printf("\n set ip: %d",adrDst.s_addr);
+	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
 	strcpy(nameClient,argv[3]); 
     }else { printf("\nSet command string: 'ip-addres' 'port' 'name'\n"); return 0; }
 
@@ -49,33 +50,35 @@ int main(int argc, char* argv[])
         perror("socket");
         return 0;
     }
-	
-//	int optval = 1;
- //       setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
 
-    printf("\nWait client ' %s ' connect...", nameClient);
-    if(connect(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        perror("connect");
-        return 0;
+    int rez=-1;
+    do
+    {	
+    	printf("\nWait client ' %s ' connect...", nameClient);
+	rez = connect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
+    	if(rez < 0) {perror("connect");sleep(1);}
+
+	if(bOut==true) break;
     }
+    while(rez < 0);	
 
     while(bOut==false)
     {
 		char buf[BUFSIZ] = {'\0'};
+		char bufout[BUFSIZ] = {'\0'};
 
 		printf("\nsend msg client  ' %s ': ",nameClient);
 		fgets(buf,BUFSIZ,stdin);
-		sprintf(buf,"%s:%s",nameClient,buf);
 		int i = strlen(buf)-1;
-
 		if(buf[i] == '\n') buf[i]= '\0';
+		sprintf(bufout,"%s:%s",nameClient,buf);
 
-    		send(sockfd, buf, strlen(buf), 0);
+    		send(sockfd, bufout, strlen(bufout), 0);
 
-    		recv(sockfd, buf, sizeof(buf), 0);
+		/*char bufin[BUFSIZ] = {'\0'};
+    		recv(sockfd, bufin, sizeof(bufin), 0);
 		
-		printf("\n\tread msg: %s",buf);		
+		printf("\n\tread msg: %s",bufin);*/		
     }
 
     shutdown(sockfd, 2);

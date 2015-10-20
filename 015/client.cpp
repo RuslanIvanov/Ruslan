@@ -52,8 +52,7 @@ int main(int argc, char* argv[])
         perror("socket");
         return 0;
     }
-
-    pthread_create(&thId, NULL, funcThread, NULL);
+  
 
     int rez=-1;
     do
@@ -65,6 +64,8 @@ int main(int argc, char* argv[])
 	if(bOut==true) break;
     }
     while(rez < 0);	
+	
+    pthread_create(&thId, NULL, funcThread, NULL);
 
     while(bOut==false)
     {
@@ -72,11 +73,14 @@ int main(int argc, char* argv[])
 		char bufout[BUFSIZ] = {'\0'};
 		const char *cmd[3]= {"","cli","msg10"};
 		int indCmd=0;	
-		printf("\nMenu");
-		printf("\n\tget names clients - enter 1;");
-		printf("\n\tget last ten messages - enter 2;");
-		printf("\n\tsend message - enter 0;");
-		scanf("%d",&indCmd);
+		printf("\nMenu:");
+		printf("\n\tget names clients - enter 1: ");
+		printf("\n\tget last ten messages - enter 2: ");
+		printf("\n\tsend message - enter 0: ");
+		scanf("%d",&indCmd);printf("\n");
+		//char c = getchar();
+		//indCmd = atoi(&c);
+		printf("\ncmd: %d",indCmd);
 		if(indCmd==0)
 		{
 			printf("\nmsg ' %s ': ",nameClient);
@@ -88,7 +92,19 @@ int main(int argc, char* argv[])
 			{sprintf(bufout,"$N=%s:$C=%s:$M=",nameClient,cmd[indCmd]);}
 		else {printf("\nError command..."); continue;}
 
+		printf("\n->[%d]'%s',",strlen(bufout),bufout);
     		send(sockfd, bufout, strlen(bufout), 0);
+
+		int rez=0;
+		char bufin[BUFSIZ]={'\n'};
+   	
+		/*do
+		{
+			rez = recv(sockfd, bufin, sizeof(bufin), 0);
+        		bufin[rez] = '\0';
+			printf("\nrecv[%d]: %s",strlen(bufin),bufin);
+		}
+		while(rez>0);*/
     }
 
     shutdown(sockfd, 2);
@@ -101,7 +117,7 @@ int main(int argc, char* argv[])
 
 void * funcThread(void* )
 {
-    	printf("\nRUN TASK READ");
+    	//printf("\nRUN TASK READ");
    	char bufin[BUFSIZ]={'\n'};
 	
    	while(bOut == false)
@@ -116,7 +132,7 @@ void * funcThread(void* )
 		while(rez>0);
    	}
 	
-    	printf("\nEXIT TASK");
+    	//printf("\nEXIT TASK");
     	return 0;
 }
 

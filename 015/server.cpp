@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
             perror("accept");
             return 0;
         }
-	printf("\nServer connected %d!",iConnect+1);
+	printf("\nServer connected %d! Create socket %x",iConnect+1,sock);
 	param[iConnect].sockTh = sock;
 	param[iConnect].addr = addrCli[iConnect];
 	param[iConnect].n = nAddrCli;  
@@ -135,28 +135,34 @@ void * funcThread(void* pVoid)
 	while(bOut==false)
         {
 	    char buf[BUFSIZ]={'\0'};
+	    printf("\nwait server '%x' ",pparam->sockTh);
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
+	    printf("\nbytes read %d",bytes_read);
             if(bytes_read <= 0) continue;
-
+ 	    printf("\n->'%s'",buf);
 	    pthread_mutex_lock(&mutex);
 	    listConnect(buf,v_connect);
 		
  	    int cmd = getCmd(buf);
 	    if(cmd == 0)
 	    {
+		printf("\ncmd %d",cmd);
 		listMsg(buf,v_msg);
+		
 	    }
 
 	    if(cmd == 1) 
 	    {
+		printf("\ncmd %d",cmd);
 		for(int i=0;i<v_connect.size();i++)
-	    	{    		
-			send(pparam->sockTh, v_connect[i].c_str(), strlen(v_connect[i].c_str())+1, 0);
+	    	{  printf("send to...");  		
+			sendto(pparam->sockTh, v_connect[i].c_str(), strlen(v_connect[i].c_str())+1, 0,( struct sockaddr *)(&pparam->addr),pparam->n);
 	    	}
 	    }
 
 	    if(cmd == 2)
 	    {	
+		printf("\ncmd %d",cmd);
 	    	//выдавать послед. 10 из списка,	
 	    	printf("\nserver read[%d]: %s",bytes_read,buf);
 	    	if(v_msg.empty()==false)
@@ -164,7 +170,7 @@ void * funcThread(void* pVoid)
 	    		vector<string>::reverse_iterator riter = v_msg.rbegin();
 	    		for(int i=0;riter!=v_msg.rend() && i<10;i++,++riter)	
              		{
-				send(pparam->sockTh, (*riter).c_str(), strlen((*riter).c_str())+1, 0);
+				sendto(pparam->sockTh, (*riter).c_str(), strlen((*riter).c_str())+1, 0,( struct sockaddr *)(&pparam->addr),pparam->n);
 	    		}
 	    	}
 	     }
@@ -179,7 +185,7 @@ int getCmd(const char* bufIn)
 {
 	int i=0; 
 	char tmp[BUFSIZ]= {'\0'};
-	char  *p = strstr(tmp,"$C=");
+	char  *p = strstr((char*)bufIn,"$C=");
 	p=p+3;
         while(p[i]!='\0')
         {
@@ -201,7 +207,7 @@ void listConnect(const char* bufIn, vector<string>& vc)
 {
         int i=0; 
 	char tmp[BUFSIZ]= {'\0'};
-	char  *p = strstr(tmp,"$N=");
+	char  *p = strstr((char*)&bufIn[0],"$N=");
 	p=p+3;
         while(p[i]!='\0')
         {
@@ -210,7 +216,7 @@ void listConnect(const char* bufIn, vector<string>& vc)
                 {
                         tmp[i]='\0';
                         string str(tmp);
-
+			printf("\nname connect '%s'",tmp);
 			bool b=false;
 			for(int i=0;i<vc.size();i++)
 			{

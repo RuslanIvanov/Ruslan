@@ -11,8 +11,10 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <errno.h>
 #include <vector>
 #include <string>
+#include <map>
 
 using namespace std;
 
@@ -24,7 +26,8 @@ bool bOut = false;
 char nameServ[BUFSIZ];
 void * funcThread(void*);
 vector <string> v_msg;
-vector <string> v_connect;
+map<int,string> m_connect;
+//vector <string> v_connect;
 
 struct Param
 {
@@ -36,8 +39,8 @@ struct Param
 Param param[MAX_CONNECT];
 pthread_t thId[MAX_CONNECT];
 int iConnect;
-void listConnect(const char* bufIn, vector<string>& vc);
-void listMsg(/*const*/ char* bufIn, vector<string>& vc);
+void listConnect(const char* bufIn, int ,map<int,string>&);
+void listMsg(const char* bufIn, vector<string>& vc);
 int getCmd(const char* bufIn);
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -105,6 +108,15 @@ int main(int argc, char* argv[])
             perror("accept");
             return 0;
         }
+	if(sock == ECONNABORTED)//не работеат
+	{
+		printf("\nsocket %d disconnect",sock); 
+		pthread_mutex_lock(&mutex);
+		m_connect.erase(sock); 
+    		pthread_mutex_unlock(&mutex);
+		continue;
+	}
+
 	printf("\nServer connected %d! Create socket %x",iConnect+1,sock);
 	param[iConnect].sockTh = sock;
 	param[iConnect].addr = addrCli[iConnect];
@@ -128,49 +140,51 @@ int main(int argc, char* argv[])
 
 void * funcThread(void* pVoid)
 {
-	printf("\nSTART TASK");
 	int bytes_read=0;
 	Param *pparam = (Param*)pVoid;
 	
 	while(bOut==false)
         {
 	    char buf[BUFSIZ]={'\0'};
-	    printf("\nwait server '%x' ",pparam->sockTh);
+	    printf("\nwait server sock '%x' ",pparam->sockTh);
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
 	    printf("\nbytes read %d",bytes_read);
-            if(bytes_read <= 0) continue;
+            if(bytes_read <= 0) break;
  	    printf("\n->'%s'",buf);
 	    pthread_mutex_lock(&mutex);
-	    listConnect(buf,v_connect);
+	    listConnect(buf,pparam->sockTh,m_connect);
 		
  	    int cmd = getCmd(buf);
 	    if(cmd == 0)
 	    {
 		printf("\ncmd %d",cmd);
 		listMsg(buf,v_msg);
-		
 	    }
 
 	    if(cmd == 1) 
 	    {
-		printf("\ncmd %d",cmd);
-		for(int i=0;i<v_connect.size();i++)
-	    	{  printf("send to...");  		
-			sendto(pparam->sockTh, v_connect[i].c_str(), strlen(v_connect[i].c_str())+1, 0,( struct sockaddr *)(&pparam->addr),pparam->n);
-	    	}
+		printf("\ncmd %d",cmd); printf("send to client ...");  
+		map<int,string>:: iterator it;
+		string tmp;
+		for (/*auto*/it = m_connect.begin(); it != m_connect.end(); ++it)
+  		{
+     			printf("\nfd %d name: %s",(*it).first, (*it).second.c_str());
+			sendto(pparam->sockTh,  (*it).second.c_str(), strlen( (*it).second.c_str())+1, O_NONBLOCK,( struct sockaddr *)(&pparam->addr),pparam->n);// не отсылает все
+  		}
 	    }
 
 	    if(cmd == 2)
 	    {	
-		printf("\ncmd %d",cmd);
+		//printf("\ncmd %d",cmd);
 	    	//выдавать послед. 10 из списка,	
-	    	printf("\nserver read[%d]: %s",bytes_read,buf);
+	    	//printf("\nserver read[%d]: %s",bytes_read,buf);
 	    	if(v_msg.empty()==false)
 	    	{
 	    		vector<string>::reverse_iterator riter = v_msg.rbegin();
 	    		for(int i=0;riter!=v_msg.rend() && i<10;i++,++riter)	
              		{
-				sendto(pparam->sockTh, (*riter).c_str(), strlen((*riter).c_str())+1, 0,( struct sockaddr *)(&pparam->addr),pparam->n);
+				sendto(pparam->sockTh, (*riter).c_str(), strlen((*riter).c_str())+1, O_NONBLOCK,( struct sockaddr *)(&pparam->addr),pparam->n);
+				printf("\nmsg: %s",(*riter).c_str());
 	    		}
 	    	}
 	     }
@@ -203,7 +217,7 @@ int getCmd(const char* bufIn)
 	return 0;
 }
 
-void listConnect(const char* bufIn, vector<string>& vc)
+void listConnect(const char* bufIn, int fd, map<int,string>& mc)
 {
         int i=0; 
 	char tmp[BUFSIZ]= {'\0'};
@@ -216,24 +230,18 @@ void listConnect(const char* bufIn, vector<string>& vc)
                 {
                         tmp[i]='\0';
                         string str(tmp);
-			printf("\nname connect '%s'",tmp);
-			bool b=false;
-			for(int i=0;i<vc.size();i++)
-			{
-				if(vc[i]==str){b=true; break;}
-			}
-			if(b==false)
-			{vc.push_back(str); printf("\nadd: %s",str.c_str());}
-			break;
+			printf("\nname connect '%s' is add",tmp);
+			mc.insert (pair<int,string>(fd,str));
+			return;
                 }
 		
                 i++;
         }
 }
 
-void listMsg(/*const*/ char* bufIn, vector<string>& vc)
+void listMsg(const char* bufIn, vector<string>& vc)
 {
-	char  *p = strstr(&bufIn[0],"$M=");
+	char  *p = strstr((char*)&bufIn[0],"$M=");
 	p=p+3;
 	string str(p);
         vc.push_back(str);

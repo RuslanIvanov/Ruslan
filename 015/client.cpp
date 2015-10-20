@@ -78,18 +78,18 @@ int main(int argc, char* argv[])
 		printf("\n\tget last ten messages - enter 2: ");
 		printf("\n\tsend message - enter 0: ");
 		scanf("%d",&indCmd);printf("\n");
-		//char c = getchar();
-		//indCmd = atoi(&c);
 		printf("\ncmd: %d",indCmd);
 		if(indCmd==0)
 		{
 			printf("\nmsg ' %s ': ",nameClient);
-			fgets(buf,BUFSIZ,stdin);
+			//fgets(buf,BUFSIZ,stdin);
+			scanf("%s",buf);
 			int i = strlen(buf)-1;
 			if(buf[i] == '\n') buf[i]= '\0';
 			sprintf(bufout,"$N=%s:$C=%s:$M=%s",nameClient,cmd[indCmd],buf);
+
 		}else if(indCmd==1 || indCmd==2)
-			{sprintf(bufout,"$N=%s:$C=%s:$M=",nameClient,cmd[indCmd]);}
+			{ sprintf(bufout,"$N=%s:$C=%s:$M=",nameClient,cmd[indCmd]);}
 		else {printf("\nError command..."); continue;}
 
 		printf("\n->[%d]'%s',",strlen(bufout),bufout);
@@ -126,6 +126,7 @@ void * funcThread(void* )
 		do
 		{
 			rez = recv(sockfd, bufin, sizeof(bufin), 0);
+			if(rez<0) return 0;
         		bufin[rez] = '\0';
 			printf("\nrecv[%d]: %s",strlen(bufin),bufin);
 		}

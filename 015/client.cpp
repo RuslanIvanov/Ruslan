@@ -40,10 +40,10 @@ int main(int argc, char* argv[])
 
 	addr.sin_family = AF_INET;
     	addr.sin_port = htons(port); 
-	printf("\n set ip: %d",adrDst.s_addr);
+	printf("\n set ip: ' %s ' (%x)",argv[1],adrDst.s_addr);
 	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
 	strcpy(nameClient,argv[3]); 
-    }else { printf("\nSet command string: 'ip-addres' 'port' 'name'\n"); return 0; }
+    }else { printf("\nSet command string: 'ip-addres' 'port' 'name', Exit 'Ctrl+C'\n"); return 0; }
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -53,7 +53,6 @@ int main(int argc, char* argv[])
         return 0;
     }
   
-
     int rez=-1;
     do
     {	
@@ -64,47 +63,48 @@ int main(int argc, char* argv[])
 	if(bOut==true) break;
     }
     while(rez < 0);	
-	
-    pthread_create(&thId, NULL, funcThread, NULL);
+    sleep(1);
 
+    char sendName[BUFSIZ];
+    sprintf(sendName,"$N=%s:",nameClient);
+    send(sockfd, sendName, strlen(sendName)+1, 0);
+
+    pthread_create(&thId, NULL, funcThread, NULL);
+    sleep(1);
     while(bOut==false)
     {
 		char buf[BUFSIZ] = {'\0'};
 		char bufout[BUFSIZ] = {'\0'};
-		const char *cmd[3]= {"","cli","msg10"};
+		const char *cmd[3]= {"","cln","msg10"};
 		int indCmd=0;	
 		printf("\nMenu:");
-		printf("\n\tget names clients - enter 1: ");
-		printf("\n\tget last ten messages - enter 2: ");
-		printf("\n\tsend message - enter 0: ");
+		printf("\n\tGet names clients - enter 1;");
+		printf("\n\tGet last ten messages - enter 2;");
+		printf("\n\tGend message - enter 0;");
+		printf("\n\tExit 'Ctrl+C'.");
+		printf("\n\tEnter command ' %s ': ",nameClient);
 		scanf("%d",&indCmd);printf("\n");
-		printf("\ncmd: %d",indCmd);
+
 		if(indCmd==0)
 		{
-			printf("\nmsg ' %s ': ",nameClient);
+			printf("\n\tenter msg ' %s ': ",nameClient);
 			//fgets(buf,BUFSIZ,stdin);
 			scanf("%s",buf);
 			int i = strlen(buf)-1;
 			if(buf[i] == '\n') buf[i]= '\0';
-			sprintf(bufout,"$N=%s:$C=%s:$M=%s",nameClient,cmd[indCmd],buf);
+			sprintf(bufout,"$N=%s:$M=%s",nameClient,buf);
 
 		}else if(indCmd==1 || indCmd==2)
-			{ sprintf(bufout,"$N=%s:$C=%s:$M=",nameClient,cmd[indCmd]);}
+			{ 
+				sprintf(bufout,"$N=%s:$C=%s:",nameClient,cmd[indCmd]);
+			}
 		else {printf("\nError command..."); continue;}
 
-		printf("\n->[%d]'%s',",strlen(bufout),bufout);
-    		send(sockfd, bufout, strlen(bufout), 0);
+		//printf("\n->[%d] '%s',",strlen(bufout),bufout);
+    		send(sockfd, bufout, strlen(bufout)+1, MSG_DONTWAIT/*O_NONBLOCK*/);
 
 		int rez=0;
-		char bufin[BUFSIZ]={'\n'};
-   	
-		/*do
-		{
-			rez = recv(sockfd, bufin, sizeof(bufin), 0);
-        		bufin[rez] = '\0';
-			printf("\nrecv[%d]: %s",strlen(bufin),bufin);
-		}
-		while(rez>0);*/
+		char bufin[BUFSIZ]={'\n'};	
     }
 
     shutdown(sockfd, 2);
@@ -117,23 +117,15 @@ int main(int argc, char* argv[])
 
 void * funcThread(void* )
 {
-    	//printf("\nRUN TASK READ");
-   	char bufin[BUFSIZ]={'\n'};
+   	char bufin[BUFSIZ]={'\0'};
 	
    	while(bOut == false)
    	{
 		int rez=0;
-		do
-		{
-			rez = recv(sockfd, bufin, sizeof(bufin), 0);
-			if(rez<0) return 0;
-        		bufin[rez] = '\0';
-			printf("\nrecv[%d]: %s",strlen(bufin),bufin);
-		}
-		while(rez>0);
+		rez = recv(sockfd, bufin, sizeof(bufin), 0);
+		if(rez<=0) { perror("Disconnect server!"); return 0; }
+		printf("\n<-[%d]:\n%s",strlen(bufin),bufin);
    	}
-	
-    	//printf("\nEXIT TASK");
     	return 0;
 }
 

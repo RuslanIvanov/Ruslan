@@ -120,18 +120,19 @@ void * funcThread(void* pVoid)
 	    buf[bytes_read] = '\0';
 	    printf("\n%s\n",buf);	
 
-	   //разобрать заголовок
+	    //разобрать заголовок
 	    char nameRequest[BUFSIZ];
 	    int rez  = parserRequest(buf,nameRequest,bytes_read);
 
-	    char answer[BUFSIZ+BUFSIZ];
-	    head(answer,BUFSIZ+BUFSIZ,rez);
-	    char response[BUFSIZ*21];
+	    char answer[BUFSIZ*40];
+	    char response[BUFSIZ*40];
 	    printf("\nsize response %d",sizeof (response));
 		
-	    if( rez==1)
+	    if( rez==1 )
 	    {
 		int len = makeResponseImg(response, sizeof (response),nameRequest);
+		head(answer,len,rez);
+		printf("\nanwer:\n%s\n",answer);
 		int na = strlen(answer);
 		sendto(pparam->sockTh, answer, na,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 
@@ -148,12 +149,16 @@ void * funcThread(void* pVoid)
     		}
 	    }
             else
-	    if(makeResponseText(response, BUFSIZ,nameRequest) && rez==0)
+	    if( rez==0 )
 	    {
+		int len = makeResponseText(response, BUFSIZ,nameRequest);
+		head(answer,len,rez);
+		printf("\nanwer:\n%s\n",answer);
 		strcat(answer,response);
 		sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
-	    } else if(makeResponseText(response, BUFSIZ,"404_Not_Found.html"))
-		    {
+	    } else 
+		    {	int len = makeResponseText(response, BUFSIZ,"404_Not_Found.html");
+			head(answer,len,rez);
                         strcat(answer,response);
 			sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
 	            }
@@ -186,8 +191,7 @@ int parserRequest(const char* str,char *name, int n)
 
 void head(char *head,int n, int type)
 { 
-	strcpy(head,"");
-	strcat(head,"HTTP/1.1 200 OK\r\n");
+	strcpy(head,"HTTP/1.1 200 OK\r\n");
         strcat(head, "Version: HTTP/1.1\r\n");
 	if(type==0 || type == -1)
         	strcat(head, "Content-Type: text/html; charset=utf-8\r\n");
@@ -217,12 +221,13 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
 	while(!feof(fd))
 	{
 		//считываем элемент
-		fread(response, sizeof(char), 1, fd);
+		fread(response+i, sizeof(char), 1, fd);
+		//printf("%x",response[i]);
 		i++;
 		if(i>=nr) break;
 	}
 
-	nread = i;
+	nread = i-1;
 
 	printf("\n[length img %d]\n",nread);
 

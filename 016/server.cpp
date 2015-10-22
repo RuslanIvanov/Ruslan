@@ -126,11 +126,12 @@ void * funcThread(void* pVoid)
 
 	    char answer[BUFSIZ+BUFSIZ];
 	    head(answer,BUFSIZ+BUFSIZ,rez);
-	    char response[BUFSIZ*11];
+	    char response[BUFSIZ*21];
 	    printf("\nsize response %d",sizeof (response));
 		
-	    if(int len = makeResponseImg(response, sizeof (response),nameRequest) && rez==1)
+	    if( rez==1)
 	    {
+		int len = makeResponseImg(response, sizeof (response),nameRequest);
 		int na = strlen(answer);
 		sendto(pparam->sockTh, answer, na,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 
@@ -143,6 +144,7 @@ void * funcThread(void* pVoid)
         		n = sendto(pparam->sockTh, response+total, len-total,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 		        if(n == -1) { break; }
 		        total += n;
+			printf(" Send: %d",n);
     		}
 	    }
             else

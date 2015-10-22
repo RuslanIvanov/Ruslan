@@ -30,8 +30,10 @@ struct Param
 Param param[MAX_CONNECT];
 pthread_t thId[MAX_CONNECT];
 
-int makeResponse(char* response, int nr,const char*);
-void head(char *head,int n, bool bOK);
+int makeResponseText(char* response, int nr,const char*);
+int makeResponseImg(char* response, int nr,const char* imgFile);
+void head(char *head,int n, int type );
+int parserRequest(const char* str,char*,int n);
 
 int main(int argc, char* argv[])
 {
@@ -42,7 +44,7 @@ int main(int argc, char* argv[])
     {
 	port = atoi(argv[1]);
     }
-
+    printf("\nport %d\n",port);
     int sock, listener;
     char buf[BUFSIZ];
     int bytes_read;
@@ -87,7 +89,7 @@ int main(int argc, char* argv[])
             return 0;
         }
 
-	printf("\nServer connected %d! Create socket %x",iConnect+1,sock);
+	printf("\nServer connected %d! Create socket %x\n",iConnect+1,sock);
         param[iConnect].sockTh = sock;
         param[iConnect].addr = addrCli[iConnect];
         param[iConnect].n = nAddrCli;  
@@ -115,19 +117,40 @@ void * funcThread(void* pVoid)
             char buf[BUFSIZ]={'\0'};
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
             if(bytes_read <= 0) perror("");
-	    
-	    printf("%s",buf);	
+	    buf[bytes_read] = '\0';
+	    printf("\n%s\n",buf);	
 
 	   //разобрать заголовок
+	    char nameRequest[BUFSIZ];
+	    int rez  = parserRequest(buf,nameRequest,bytes_read);
 
 	    char answer[BUFSIZ+BUFSIZ];
-	    head(answer,BUFSIZ+BUFSIZ,true);
-	    char response[BUFSIZ];
-	    if(makeResponse(response, BUFSIZ,"index.html"))
-	    {	
+	    head(answer,BUFSIZ+BUFSIZ,rez);
+	    char response[BUFSIZ*11];
+	    printf("\nsize response %d",sizeof (response));
+		
+	    if(int len = makeResponseImg(response, sizeof (response),nameRequest) && rez==1)
+	    {
+		int na = strlen(answer);
+		sendto(pparam->sockTh, answer, na,0,( struct sockaddr *)(&pparam->addr),pparam->n);
+
+		printf("\nnimg %d",len);
+		int total = 0;
+    		int n;
+
+	        while(total < len)
+    		{
+        		n = sendto(pparam->sockTh, response+total, len-total,0,( struct sockaddr *)(&pparam->addr),pparam->n);
+		        if(n == -1) { break; }
+		        total += n;
+    		}
+	    }
+            else
+	    if(makeResponseText(response, BUFSIZ,nameRequest) && rez==0)
+	    {
 		strcat(answer,response);
-		sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);	    
-	    } else if(makeResponse(response, BUFSIZ,"404_Not_Found.html"))
+		sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
+	    } else if(makeResponseText(response, BUFSIZ,"404_Not_Found.html"))
 		    {
                         strcat(answer,response);
 			sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
@@ -141,18 +164,71 @@ void * funcThread(void* pVoid)
         return 0;
 }
 
-void head(char *head,int n, bool bOK)
+int parserRequest(const char* str,char *name, int n)
+{
+	strcpy(name,"");
+	char *pp = strstr((char*)str,"GET /index.html");
+	if(pp) {strcpy(name,"index.html"); printf("\nfinded: index.html"); return 0;}	
+
+	pp = strstr((char*)str,"GET / ");
+	if(pp) {strcpy(name,"index.html"); return 0;}	
+
+	pp = strstr((char*)str,"GET /Images/IMG_0599.JPG");
+	if(pp)
+	{
+		strcpy(name,"Images/IMG_0599.JPG"); return 1;
+		printf("\nfinded: IMG");
+	}
+	return -1;
+}
+
+void head(char *head,int n, int type)
 { 
 	strcpy(head,"");
 	strcat(head,"HTTP/1.1 200 OK\r\n");
         strcat(head, "Version: HTTP/1.1\r\n");
-        strcat(head, "Content-Type: text/html; charset=utf-8\r\n");
+	if(type==0 || type == -1)
+        	strcat(head, "Content-Type: text/html; charset=utf-8\r\n");
+	if(type ==1 )
+		strcat(head, "Content-Type: image/jpeg\r\n");
         strcat(head, "Content-Length: ");char buf[BUFSIZ]; sprintf(buf,"%i",n);
 	strcat(head, buf);
         strcat(head, "\r\n\r\n");
 }
 
-int makeResponse(char* response, int nr,const char* htmlFile)
+int makeResponseImg(char* response, int nr,const char* imgFile)
+{
+	if(response==NULL || nr==0) return 0;
+
+        int nread=0;
+	FILE* fd=0;
+	
+        fd = fopen(imgFile,"rb");
+        if(fd==NULL)
+        {
+		printf("\nError fopen ' %s '",imgFile);
+		perror("");
+                return 0;
+        }
+	
+	int i = 0;
+	while(!feof(fd))
+	{
+		//считываем элемент
+		fread(response, sizeof(char), 1, fd);
+		i++;
+		if(i>=nr) break;
+	}
+
+	nread = i;
+
+	printf("\n[length img %d]\n",nread);
+
+	fclose(fd);
+	return nread;
+}
+
+int makeResponseText(char* response, int nr,const char* htmlFile)
 {
 	if(response==NULL || nr==0) return 0;
 
@@ -188,7 +264,6 @@ void out(int sig)
                 pthread_cancel(thId[i]);
                 thId[i]=0;
         }
-        //pthread_mutex_destroy(&mutex);
         exit(0);
     }
 }

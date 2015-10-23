@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#define STACK_SIZE (1024 * 1024)
+
 int funcThread(void*);
 struct Param
 {
@@ -45,7 +47,7 @@ int main(int argc,char* argv[], char** env)
 		pparam = new Param[n];
 		pthId = new pthread_t[n];
 		pS = new double [n];
-		void* child_stack=new Param[100];
+		void* child_stack=new void*[STACK_SIZE];
 		int flags=CLONE_VM;
 		for(int ii=0;ii<n-1;ii++)
     		{

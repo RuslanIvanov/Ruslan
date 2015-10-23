@@ -36,10 +36,10 @@ int main(int argc,char* argv[], char** env)
 	    pthread_t* thId= new pthread_t[nr+nw];
 
 	    for(int i=0;i<nw;i++)
-	    pthread_create(thId+i, NULL, funcThreadW, (void*)i);
+	    pthread_create(thId+i, NULL, funcThreadW, (void*)&i);
 
 	    for(int i=nw;i<nr+nw;i++)
-	    pthread_create(thId+i, NULL, funcThreadR, (void*)i);
+	    pthread_create(thId+i, NULL, funcThreadR, (void*)&i);
 
 	    while(bOut==false)
 	    {
@@ -74,7 +74,7 @@ int main(int argc,char* argv[], char** env)
 
 void * funcThreadW(void* pi)
 {
-	int pipi = (int)pi;
+	int pipi = *(int*)pi;
 	printf("\nRUN TASK WRITE %d",pipi);
 	while(bOut==false)
 	{
@@ -89,7 +89,7 @@ void * funcThreadW(void* pi)
 
 void * funcThreadR(void* pi)
 {
-    int pipi = (int)pi;
+    int pipi = *(int*)pi;
     printf("\nRUN TASK READ %d",pipi);
     while(bOut==false)
     {

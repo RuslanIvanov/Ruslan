@@ -54,7 +54,7 @@ int main(int argc,char* argv[], char** env)
 			pparam[ii].a = a;
 			pparam[ii].h = h;
 			pparam[ii].i = ii;
-			pthId[ii] = clone(funcThread, (void*)(stack+1000-1), flags,pparam+ii); 
+			pthId[ii] = clone(funcThread, (void*)(stack+10000-1), flags,pparam+ii); 
 			if(pthId[ii]==-1){ perror(""); continue;}
 			//pthread_create(pthId+ii, NULL, funcThread, pparam+ii);
     		}
@@ -66,7 +66,7 @@ int main(int argc,char* argv[], char** env)
 		{pthread_join(pthId[i],NULL);}*/
 		int stat;
 		for(int i=0;i<n-1;i++)
-		{waitpid(pthId[i],&stat,2);}
+		{waitpid(pthId[i],&stat,-2);}
 
 		printf("\ncalculated!\n");
 		for(int i=0;i<n-1;i++)

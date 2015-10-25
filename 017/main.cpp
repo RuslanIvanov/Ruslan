@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-
 #define STACK_SIZE (1024 * 1024)
 
 int funcThread(void*);
@@ -48,23 +47,20 @@ int main(int argc,char* argv[], char** env)
 		pparam = new Param[n];
 		pthId = new pthread_t[n];
 		pS = new double [n];
-		char stack[10000];
-		int flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND;
+		char stack[40000];
+		int flags=CLONE_VM;//|CLONE_FS|CLONE_FILES|CLONE_SIGHAND;
 		for(int ii=0;ii<n-1;ii++)
     		{
 			pparam[ii].a = a;
 			pparam[ii].h = h;
 			pparam[ii].i = ii;
-			pthId[ii] = clone(funcThread, (void*)(stack+10000-1), flags,pparam+ii); 
+			pthId[ii] = clone(funcThread, (void*)((stack+40000-1)-(ii*1000)), flags,pparam+ii); 
 			if(pthId[ii]==-1){ perror(""); continue;}
-			//pthread_create(pthId+ii, NULL, funcThread, pparam+ii);
     		}
 
 		printf("\nstep %6.3f",h);
 		printf("\nWait...");
 
-		/*for(int i=0;i<n-1;i++)
-		{pthread_join(pthId[i],NULL);}*/
 		int stat;
 		for(int i=0;i<n-1;i++)
 		{waitpid(pthId[i],&stat,-2);}

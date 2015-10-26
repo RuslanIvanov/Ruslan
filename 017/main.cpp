@@ -47,14 +47,16 @@ int main(int argc,char* argv[], char** env)
 		pparam = new Param[n];
 		pthId = new pthread_t[n];
 		pS = new double [n];
-		char stack[40000];
-		int flags=CLONE_VM;//|CLONE_FS|CLONE_FILES|CLONE_SIGHAND;
+		char** pstacks = new char*[n];
+//		char stack[40000];
+		int flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND;
 		for(int ii=0;ii<n-1;ii++)
     		{
 			pparam[ii].a = a;
 			pparam[ii].h = h;
 			pparam[ii].i = ii;
-			pthId[ii] = clone(funcThread, (void*)((stack+40000-1)-(ii*1000)), flags,pparam+ii); 
+			pstacks[ii] = new char[10000];
+			pthId[ii] = clone(funcThread, (void*)((pstacks[ii]+10000-1)), flags,pparam+ii); 
 			if(pthId[ii]==-1){ perror(""); continue;}
     		}
 
@@ -75,6 +77,9 @@ int main(int argc,char* argv[], char** env)
 		delete [] pthId; 
 		delete [] pparam;
 		delete [] pS;
+		for(int ii=0;ii<n-1;ii++)
+			delete [] pstacks[ii];
+		delete [] pstacks;
 
 	}else {printf("\nError: set command string: [number of partitions] [right limit]\n\n"); return 0;} 
 

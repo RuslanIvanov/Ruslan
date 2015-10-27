@@ -8,7 +8,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define STACK_SIZE (1024 * 1024)
+#define STACK_SIZE 10000
 
 int funcThread(void*);
 struct Param
@@ -48,16 +48,17 @@ int main(int argc,char* argv[], char** env)
 		pthId = new pthread_t[n];
 		pS = new double [n];
 		char** pstacks = new char*[n];
-//		char stack[40000];
-		int flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND;
+
+		int flags=CLONE_VM|SIGCHLD;
 		for(int ii=0;ii<n-1;ii++)
     		{
 			pparam[ii].a = a;
 			pparam[ii].h = h;
 			pparam[ii].i = ii;
-			pstacks[ii] = new char[10000];
-			pthId[ii] = clone(funcThread, (void*)((pstacks[ii]+10000-1)), flags,pparam+ii); 
-			if(pthId[ii]==-1){ perror(""); continue;}
+			pstacks[ii] = new char[STACK_SIZE];
+			pthId[ii] = clone(funcThread, (void*)((pstacks[ii]+STACK_SIZE-1)), flags,pparam+ii); 
+			sleep(1);
+			if(pthId[ii]==-1){ perror(""); continue; }
     		}
 
 		printf("\nstep %6.3f",h);
@@ -65,7 +66,7 @@ int main(int argc,char* argv[], char** env)
 
 		int stat;
 		for(int i=0;i<n-1;i++)
-		{waitpid(pthId[i],&stat,-2);}
+		{waitpid(pthId[i],&stat,0);}
 
 		printf("\ncalculated!\n");
 		for(int i=0;i<n-1;i++)

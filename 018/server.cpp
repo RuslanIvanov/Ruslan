@@ -14,10 +14,10 @@
 
 #define MAX_CONNECT 20
 
-int port=8080;
+int  port=8080;
 void out(int sig=0);
 bool bOut = false;
-int iConnect;
+int  iConnect;
 
 void * funcThread(void*);
 
@@ -38,40 +38,50 @@ int parserRequest(const char* str,char*,int n);
 
 char logMsg[BUFSIZ]={'\0'};
 int pidd;
+
 //cmd -ldeamon
 int main(int argc, char* argv[])
 {
     signal (SIGTERM, out);
     signal (SIGINT, out);
-    
-    if(argc==3 && strcmp("-ldeamon",argv[2])==0)
-    {
 
-    int pid = fork();
-
-    if (pid == -1)
+    if(argc==1)
     {
-        perror("start daemon");
-        return 0;
+	printf("\nStart the server by default: port 8080\n");
     }
-    else if (pid==0) //child - deamon
+
+    if(argc>3)
     {
-	pidd = getsid(pid);
+	 printf("\nError param in command string: 'port' 'type process'\n");
+	 return 0;
+    }
 
-	if(pidd)
-	{
-	    setsid();
-	}else perror("getsid");
-
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
-
-    }else { printf ("\nExit parent"); return 0;}// parent
-    }//
-    if(argc==2)
+    if(argc>1 && argc<=3)
     {
-	port = atoi(argv[1]);
+    	if(strcmp("-ldeamon",argv[1])==0)
+    	{
+		printf("\nstart deamon...\n");
+    		int pid = fork();
+
+    		if (pid == -1)
+    		{
+        		perror("start daemon");
+	        	return 0;
+    		}else if (pid==0) //child - deamon
+    		{
+			pidd = getsid(pid);
+	
+			if(pidd){setsid();}else perror("getsid");
+	
+			close(STDIN_FILENO);
+			close(STDOUT_FILENO);
+			close(STDERR_FILENO);
+
+    		}else { printf ("\nExit parent"); return 0;}// parent
+	 }else printf("\nstart process...\n");
+
+    	if(argc==3)
+    	{port = atoi(argv[2]);}
     }
     printf("\nport %d\n",port);
 
@@ -154,7 +164,7 @@ void * funcThread(void* pVoid)
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
             if(bytes_read <= 0) perror("");
 	    buf[bytes_read] = '\0';
-	    printf("\n%s\n",buf);	
+	    printf("\n%s\n",buf);
 
 	    //разобрать заголовок
 	    char nameRequest[BUFSIZ];
@@ -163,7 +173,7 @@ void * funcThread(void* pVoid)
 	    char answer[BUFSIZ*40];
 	    char response[BUFSIZ*40];
 	    printf("\nsize response %ul",sizeof (response));
-		
+
 	    if( rez==1 )
 	    {
 		int len = makeResponseImg(response, sizeof (response),nameRequest);
@@ -184,8 +194,7 @@ void * funcThread(void* pVoid)
 			printf(" Send: %d",n);
     		}
 	    }
-            else
-	    if( rez==0 )
+            else if( rez==0 )
 	    {
 		int len = makeResponseText(response, BUFSIZ,nameRequest);
 		head(answer,len,rez);
@@ -200,6 +209,7 @@ void * funcThread(void* pVoid)
 	            }
 
 	}
+
         shutdown(pparam->sockTh, 2);
         close(pparam->sockTh);
         printf("\nclose socket %d",pparam->sockTh);
@@ -226,13 +236,15 @@ int parserRequest(const char* str,char *name, int n)
 }
 
 void head(char *head,int n, int type)
-{ 
+{
 	strcpy(head,"HTTP/1.1 200 OK\r\n");
         strcat(head, "Version: HTTP/1.1\r\n");
+
 	if(type==0 || type == -1)
         	strcat(head, "Content-Type: text/html; charset=utf-8\r\n");
 	if(type ==1 )
 		strcat(head, "Content-Type: image/jpeg\r\n");
+
         strcat(head, "Content-Length: ");char buf[BUFSIZ]; sprintf(buf,"%i",n);
 	strcat(head, buf);
         strcat(head, "\r\n\r\n");
@@ -244,7 +256,7 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
 
         int nread=0;
 	FILE* fd=0;
-	
+
         fd = fopen(imgFile,"rb");
         if(fd==NULL)
         {
@@ -252,7 +264,7 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
 		perror("");
                 return 0;
         }
-	
+
 	int i = 0;
 	while(!feof(fd))
 	{

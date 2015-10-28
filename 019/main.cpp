@@ -56,10 +56,10 @@ int main(int argc,char* argv[], char** env)
 	}
 	sleep(1);
 	printf("\nwait open...");printf("\nwait open...");
-	pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0],O_WRONLY| O_RDONLY);//blocking
+	pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0], /*O_WRONLY*/ O_RDWR);//blocking
 	if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
 
-	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0],O_RDONLY| O_WRONLY);
+	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0], /*O_RDONLY*/ O_RDWR);
 	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
 
 	int i=0;
@@ -68,12 +68,13 @@ int main(int argc,char* argv[], char** env)
 	    char buf[BUFFER_SIZE]={'\0'};
 	    printf("\nwrite: ");
             gets(&buf[0]);
-	
+
 	    FD_ZERO(&rfds);FD_ZERO(&wfds);//obnuljat pered kagdim select
+
 	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
-	    //FD_SET(0,&wfds);
+	    FD_SET(0,&wfds);
 	    FD_SET(pipe_fd[FIFO_IN],&rfds);
-	    
+
 	    tv.tv_sec = 5;
 	    tv.tv_usec = 0;
 	    printf("\nwait select...");
@@ -81,11 +82,16 @@ int main(int argc,char* argv[], char** env)
 	    if(!ready){perror("select"); /*continue;*/ }
 
 	    int rez=0;
-//	    if(FD_ISSET(0,&wfds))
-//	    {
-//		printf("\nwrite: ");
-//		
-//	    }
+
+	    if(FD_ISSET(0,&wfds))
+	    {
+		printf("\nwrite: ");
+		rez=read(0,buf,BUFFER_SIZE);
+                if(rez==-1) {printf("Read error on pipein");}
+                printf("\n\tread[%d]: ",rez);
+                for(int i=0;i<rez;i++)
+                {printf("%c",buf[i]);}
+	    }
 
 	    if(FD_ISSET(pipe_fd[FIFO_OUT],&wfds))
 	    {

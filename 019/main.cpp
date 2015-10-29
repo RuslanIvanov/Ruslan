@@ -24,6 +24,10 @@ fd_set rfds;
 fd_set wfds;
 struct timeval tv;
 
+void * funcThread(void*);
+char buf[BUFFER_SIZE]={'\0'};
+pthread_t thId;
+
 int main(int argc,char* argv[], char** env)
 {
     signal (SIGTERM, out);
@@ -62,52 +66,61 @@ int main(int argc,char* argv[], char** env)
 	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0], /*O_RDONLY*/ O_RDWR);
 	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
 
+	pthread_create(&thId, NULL, funcThread, NULL);
+	sleep(1);
+	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
+//	    FD_SET(0,&rfds);
+	    FD_SET(pipe_fd[FIFO_IN],&rfds);
 	int i=0;
 	while(bOut==false)
 	{
-	    char buf[BUFFER_SIZE]={'\0'};
-	    printf("\nwrite: ");
-            gets(&buf[0]);
+	   // char buf[BUFFER_SIZE]={'\0'};
+//	    printf("\nwrite: ");
+//            gets(&buf[0]);
 
-	    FD_ZERO(&rfds);FD_ZERO(&wfds);//obnuljat pered kagdim select
+	    FD_ZERO(&rfds);
+	    FD_ZERO(&wfds);//obnuljat pered kagdim select
 
-	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
-	    FD_SET(0,&wfds);
-	    FD_SET(pipe_fd[FIFO_IN],&rfds);
+//	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
+//	    FD_SET(0,&rfds);
+//	    FD_SET(pipe_fd[FIFO_IN],&rfds);
 
-	    tv.tv_sec = 5;
+	    tv.tv_sec = 15;
 	    tv.tv_usec = 0;
-	    printf("\nwait select...");
-	    int ready = select(/*10*/pipe_fd[FIFO_IN]+1,&rfds,&wfds,NULL,&tv);
-	    if(!ready){perror("select"); /*continue;*/ }
+
+	    //printf("\nwait select...");
+	    int ready = select(10/*pipe_fd[FIFO_IN]+1*/,&rfds,&wfds,NULL,&tv);
+	    if(!ready){perror("select"); continue; }
 
 	    int rez=0;
 
-	    if(FD_ISSET(0,&wfds))
+	    /*if(FD_ISSET(0,&rfds))
 	    {
-		printf("\nwrite: ");
-		rez=read(0,buf,BUFFER_SIZE);
+		printf("\nuser input: ");
+		char bufr[BUFFER_SIZE]={'\0'};// вычитал в свой массив ввод пользователя
+		rez=read(0,bufr,BUFFER_SIZE);
                 if(rez==-1) {printf("Read error on pipein");}
                 printf("\n\tread[%d]: ",rez);
                 for(int i=0;i<rez;i++)
-                {printf("%c",buf[i]);}
-	    }
+                {printf("%c",bufr[i]);}
+	    }*/
 
 	    if(FD_ISSET(pipe_fd[FIFO_OUT],&wfds))
 	    {
 		rez = write(pipe_fd[FIFO_OUT],buf,strlen(buf));
 		if(rez==-1) {printf("Write error on pipeout");}
 
-		printf("\nwrited %d bytes",rez);
+		//printf("\nwrited %d bytes",rez);
 	    }
 
 	    if(FD_ISSET(pipe_fd[FIFO_IN],&rfds))
 	    {
-		rez=read(pipe_fd[FIFO_IN],buf,BUFFER_SIZE);
+		char bufr[BUFFER_SIZE]={'\0'};
+		rez=read(pipe_fd[FIFO_IN],bufr,BUFFER_SIZE);
 		if(rez==-1) {printf("Read error on pipein");}
-		printf("\n\tread[%d]: ",rez);
+		printf("\n\tread pipe[%d]: ",rez);
 		for(int i=0;i<rez;i++)
-		{printf("%c",buf[i]);}
+		{printf("%c",bufr[i]);}
 	    }
 	}
 
@@ -121,6 +134,15 @@ int main(int argc,char* argv[], char** env)
     unlink(&filename[FIFO_IN][0]);
 
     return 0;
+}
+
+void * funcThread(void* pVoid)
+{
+        while(bOut==false)
+	{
+	      printf("\nenter msg: ");
+              gets(&buf[0]);
+	}
 }
 
 void out(int sig)

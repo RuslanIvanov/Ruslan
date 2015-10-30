@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <syslog.h>
+#include <errno.h>
 
 #define MAX_CONNECT 20
 
@@ -31,26 +32,22 @@ struct Param
 Param param[MAX_CONNECT];
 pthread_t thId[MAX_CONNECT];
 
-int makeResponseText(char* response, int nr,const char*);
-int makeResponseImg(char* response, int nr,const char* imgFile);
+int  makeResponseText(char* response, int nr,const char*);
+int  makeResponseImg(char* response, int nr,const char* imgFile);
 void head(char *head,int n, int type );
-int parserRequest(const char* str,char*,int n);
+int  parserRequest(const char* str,char*,int n);
 
 char logMsg[BUFSIZ]={'\0'};
 int pidd;
 
-//cmd -ldeamon
+bool bDeamon = false;
+
 int main(int argc, char* argv[])
 {
     signal (SIGTERM, out);
     signal (SIGINT, out);
 
-    if(argc==1)
-    {
-	printf("\nStart the server by default: port 8080\n");
-    }
-
-    if(argc>3)
+    if(argc>3 || argc ==1 )
     {
 	 printf("\nError param in command string: 'port' 'type process'\n");
 	 return 0;
@@ -58,7 +55,7 @@ int main(int argc, char* argv[])
 
     if(argc>1 && argc<=3)
     {
-    	if(strcmp("-ldeamon",argv[1])==0)
+    	if(argc == 3 && strcmp("-deamon",argv[2])==0)
     	{
 		printf("\nstart deamon...\n");
     		int pid = fork();
@@ -67,12 +64,26 @@ int main(int argc, char* argv[])
     		{
         		perror("start daemon");
 	        	return 0;
-    		}else if (pid==0) //child - deamon
+    		}else if (!pid) //child - deamon
     		{
-			pidd = getsid(pid);
-	
-			if(pidd){setsid();}else perror("getsid");
-	
+			pidd = getsid(pid);// возвращает идентификатор (ID) сессии, вызвавшего процесса
+
+			//if(pidd!=-1){ umask(0); if(setsid()!=-1){bDeamon=true;}else{perror("setsid");}}//создает новый сеанс
+			//else perror("getsid");
+
+			 bDeamon=true;
+			 if(pidd!=-1)
+			 {
+				sprintf(logMsg,"DEAMON setsid");
+       			 	syslog(0, logMsg, strlen(logMsg));
+				if(setsid()==-1)
+				{
+					sprintf(logMsg,"DEAMON setsid error (errno %d)",errno);
+                                	syslog(0, logMsg, strlen(logMsg));
+				}
+
+			 }
+
 			close(STDIN_FILENO);
 			close(STDOUT_FILENO);
 			close(STDERR_FILENO);
@@ -80,13 +91,18 @@ int main(int argc, char* argv[])
     		}else { printf ("\nExit parent"); return 0;}// parent
 	 }else printf("\nstart process...\n");
 
-    	if(argc==3)
-    	{port = atoi(argv[2]);}
+    	if(argc==2 || argc == 3)
+    	{port = atoi(argv[1]);}
     }
+
     printf("\nport %d\n",port);
 
-    sprintf(logMsg,"START DEAMON (PID %d): port %d",pidd,port);
-    syslog(0, logMsg, strlen(logMsg));
+    if(bDeamon)
+    {
+    	pidd = getpid();
+	sprintf(logMsg,"START DEAMON (PID %d): port %d",pidd,port);
+    	syslog(0, logMsg, strlen(logMsg));
+    }
 
     int sock, listener;
     char buf[BUFSIZ];
@@ -100,6 +116,12 @@ int main(int argc, char* argv[])
     if(listener < 0)
     {
         perror("socket");
+	if(bDeamon)
+        {
+              sprintf(logMsg,"ERROR DEAMON: socket (errno %d)",errno);
+              syslog(0, logMsg, strlen(logMsg));
+         }
+
         exit(1);
     }
 
@@ -107,12 +129,17 @@ int main(int argc, char* argv[])
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-    int optval = 1;
-    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1){perror("SO_REUSEADDR:"); }
+//    int optval = 1;
+//    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1){perror("SO_REUSEADDR:"); }
 
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         perror("bind");
+	if(bDeamon)
+	{
+		sprintf(logMsg,"ERROR DEAMON: bind (errno %d)",errno);
+        	syslog(0, logMsg, strlen(logMsg));
+	}
         exit(2);
     }
 
@@ -129,10 +156,22 @@ int main(int argc, char* argv[])
         if(sock < 0)
         {
             perror("accept");
+	    if(bDeamon)
+            { 
+                sprintf(logMsg,"ERROR DEAMON: accept (errno %d)",errno);
+                syslog(0, logMsg, strlen(logMsg));
+            }
+
             return 0;
         }
 
 	printf("\nServer connected %d! Create socket %x\n",iConnect+1,sock);
+	if(bDeamon)
+        { 
+                sprintf(logMsg,"Server connected %d! Create socket %x\n",iConnect+1,sock);
+                syslog(0, logMsg, strlen(logMsg));
+        }
+
         param[iConnect].sockTh = sock;
         param[iConnect].addr = addrCli[iConnect];
         param[iConnect].n = nAddrCli;  
@@ -148,8 +187,9 @@ int main(int argc, char* argv[])
         pthread_cancel(thId[i]);
    }
 
+    if(bDeamon){
     sprintf(logMsg,"STOP DEAMON (PID %d): port %d",pidd,port);
-    syslog(0, logMsg, strlen(logMsg));
+    syslog(0, logMsg, strlen(logMsg));}
  
     return 0;
 }
@@ -312,7 +352,7 @@ void out(int sig)
 {
     if(sig==SIGTERM||sig == SIGINT)
     {
-        printf("\nGoodbye server'\n");
+        printf("\nGoodbye server (sig %d)'\n",sig);
 
         bOut=true;
         for(int i=0;i<iConnect;i++)
@@ -321,8 +361,11 @@ void out(int sig)
                 thId[i]=0;
         }
 
-	sprintf(logMsg,"STOP DEAMON (kill %d)(PID %d): port %d",sig,pidd,port);
-	syslog(0, logMsg, strlen(logMsg));
+	if(bDeamon)
+	{
+		sprintf(logMsg,"STOP DEAMON (kill %d)(PID %d): port %d",sig,pidd,port);
+		syslog(0, logMsg, strlen(logMsg));
+	}
 
         exit(0);
     }

@@ -137,8 +137,10 @@ int main(int argc, char* argv[])
         perror("bind");
 	if(bDeamon)
 	{
-		sprintf(logMsg,"ERROR DEAMON: bind (errno %d)",errno);
-        	syslog(0, logMsg, strlen(logMsg));
+		//sprintf(logMsg,"ERROR DEAMON: bind (errno %d)",errno);
+        	//syslog(0, logMsg, strlen(logMsg));
+		strerror_r(errno,logMsg, BUFSIZ);
+		syslog(0, logMsg, strlen(logMsg));
 	}
         exit(2);
     }

@@ -42,6 +42,8 @@ int pidd;
 
 bool bDeamon = false;
 
+void myprintf(char* str);
+
 int main(int argc, char* argv[])
 {
     signal (SIGTERM, out);
@@ -62,7 +64,7 @@ int main(int argc, char* argv[])
 
     		if (pid == -1)
     		{
-        		perror("start daemon");
+        		//perror("start daemon");
 	        	return 0;
     		}else if (!pid) //child - deamon
     		{
@@ -95,7 +97,7 @@ int main(int argc, char* argv[])
     	{port = atoi(argv[1]);}
     }
 
-    printf("\nport %d\n",port);
+    //printf("\nport %d\n",port);
 
     if(bDeamon)
     {
@@ -115,12 +117,12 @@ int main(int argc, char* argv[])
     listener = socket(AF_INET, SOCK_STREAM, 0);
     if(listener < 0)
     {
-        perror("socket");
+      
 	if(bDeamon)
         {
               sprintf(logMsg,"ERROR DEAMON: socket (errno %d)",errno);
               syslog(0, logMsg, strlen(logMsg));
-         }
+         }else perror("socket");
 
         exit(1);
     }
@@ -129,19 +131,19 @@ int main(int argc, char* argv[])
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-//    int optval = 1;
-//    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1){perror("SO_REUSEADDR:"); }
+    int optval = 1;
+    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1){perror("SO_REUSEADDR:"); }
 
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        perror("bind");
+      
 	if(bDeamon)
 	{
 		//sprintf(logMsg,"ERROR DEAMON: bind (errno %d)",errno);
         	//syslog(0, logMsg, strlen(logMsg));
 		strerror_r(errno,logMsg, BUFSIZ);
 		syslog(0, logMsg, strlen(logMsg));
-	}
+	}else   perror("bind");
         exit(2);
     }
 
@@ -157,22 +159,22 @@ int main(int argc, char* argv[])
         sock = accept(listener, (struct sockaddr*)&addrCli[iConnect], (socklen_t *)&nAddrCli);
         if(sock < 0)
         {
-            perror("accept");
+            
 	    if(bDeamon)
             { 
                 sprintf(logMsg,"ERROR DEAMON: accept (errno %d)",errno);
                 syslog(0, logMsg, strlen(logMsg));
-            }
+            }else perror("accept");
 
             return 0;
         }
 
-	printf("\nServer connected %d! Create socket %x\n",iConnect+1,sock);
+	
 	if(bDeamon)
         { 
                 sprintf(logMsg,"Server connected %d! Create socket %x\n",iConnect+1,sock);
                 syslog(0, logMsg, strlen(logMsg));
-        }
+        }else printf("\nServer connected %d! Create socket %x\n",iConnect+1,sock);
 
         param[iConnect].sockTh = sock;
         param[iConnect].addr = addrCli[iConnect];
@@ -182,7 +184,7 @@ int main(int argc, char* argv[])
         iConnect++;
    }
 
-   printf("\nWait threads...");
+   //printf("\nWait threads...");
    for(int i=0;i<iConnect;i++)
    {
    	pthread_join(thId[i],NULL);
@@ -206,7 +208,7 @@ void * funcThread(void* pVoid)
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
             if(bytes_read <= 0) perror("");
 	    buf[bytes_read] = '\0';
-	    printf("\n%s\n",buf);
+	   // printf("\n%s\n",buf);
 
 	    //разобрать заголовок
 	    char nameRequest[BUFSIZ];
@@ -214,17 +216,17 @@ void * funcThread(void* pVoid)
 
 	    char answer[BUFSIZ*40];
 	    char response[BUFSIZ*40];
-	    printf("\nsize response %ul",sizeof (response));
+	    //printf("\nsize response %ul",sizeof (response));
 
 	    if( rez==1 )
 	    {
 		int len = makeResponseImg(response, sizeof (response),nameRequest);
 		head(answer,len,rez);
-		printf("\nanwer:\n%s\n",answer);
+		//printf("\nanwer:\n%s\n",answer);
 		int na = strlen(answer);
 		sendto(pparam->sockTh, answer, na,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 
-		printf("\nnimg %d",len);
+		//printf("\nnimg %d",len);
 		int total = 0;
     		int n;
 
@@ -233,14 +235,14 @@ void * funcThread(void* pVoid)
         		n = sendto(pparam->sockTh, response+total, len-total,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 		        if(n == -1) { break; }
 		        total += n;
-			printf(" Send: %d",n);
+		//	printf(" Send: %d",n);
     		}
 	    }
             else if( rez==0 )
 	    {
 		int len = makeResponseText(response, BUFSIZ,nameRequest);
 		head(answer,len,rez);
-		printf("\nanwer:\n%s\n",answer);
+		//printf("\nanwer:\n%s\n",answer);
 		strcat(answer,response);
 		sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
 	    } else 
@@ -254,7 +256,7 @@ void * funcThread(void* pVoid)
 
         shutdown(pparam->sockTh, 2);
         close(pparam->sockTh);
-        printf("\nclose socket %d",pparam->sockTh);
+        //printf("\nclose socket %d",pparam->sockTh);
 
         return 0;
 }
@@ -263,7 +265,12 @@ int parserRequest(const char* str,char *name, int n)
 {
 	strcpy(name,"");
 	char *pp = strstr((char*)str,"GET /index.html");
-	if(pp) {strcpy(name,"index.html"); printf("\nfinded: index.html"); return 0;}	
+	if(pp) 
+	{
+		strcpy(name,"index.html"); 
+		//printf("\nfinded: index.html"); 
+		return 0;
+	}	
 
 	pp = strstr((char*)str,"GET / ");
 	if(pp) {strcpy(name,"index.html"); return 0;}	
@@ -272,7 +279,7 @@ int parserRequest(const char* str,char *name, int n)
 	if(pp)
 	{
 		strcpy(name,"Images/IMG_0599.JPG"); return 1;
-		printf("\nfinded: IMG");
+	//	printf("\nfinded: IMG");
 	}
 	return -1;
 }
@@ -302,8 +309,8 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
         fd = fopen(imgFile,"rb");
         if(fd==NULL)
         {
-		printf("\nError fopen ' %s '",imgFile);
-		perror("");
+		//printf("\nError fopen ' %s '",imgFile);
+		//perror("");
                 return 0;
         }
 
@@ -319,7 +326,7 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
 
 	nread = i-1;
 
-	printf("\n[length img %d]\n",nread);
+	//printf("\n[length img %d]\n",nread);
 
 	fclose(fd);
 	return nread;
@@ -334,7 +341,7 @@ int makeResponseText(char* response, int nr,const char* htmlFile)
 	strcpy(response,"");
         fd = fopen(htmlFile,"r");
         if(fd==NULL)
-        {       printf("\nError fopen ' %s '",htmlFile);
+        {     //  printf("\nError fopen ' %s '",htmlFile);
                 return 0;
         }
 	
@@ -344,7 +351,7 @@ int makeResponseText(char* response, int nr,const char* htmlFile)
 	response[i] = '\0';
 	nread = strlen(response);
 
-	printf("\n[length %i]\n%s",nread,response);
+	//printf("\n[length %i]\n%s",nread,response);
 
 	fclose(fd);
 	return nread;
@@ -354,7 +361,7 @@ void out(int sig)
 {
     if(sig==SIGTERM||sig == SIGINT)
     {
-        printf("\nGoodbye server (sig %d)'\n",sig);
+        //printf("\nGoodbye server (sig %d)'\n",sig);
 
         bOut=true;
         for(int i=0;i<iConnect;i++)
@@ -373,3 +380,12 @@ void out(int sig)
     }
 }
 
+
+void myprintf(char* str, bool  _bDeamon)
+{
+	if(_bDeamon)
+	{
+		sprintf(logMsg,"%s",str);
+		syslog(0, logMsg, strlen(logMsg));
+	}else{printf("%s",str);}
+}

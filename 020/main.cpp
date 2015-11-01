@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/poll.h>
 
 #define FIFO_IN 0
 #define FIFO_OUT 1
@@ -19,10 +20,7 @@ int pipe_fd[2];
 char filename[2][BUFSIZ];
 void out(int sig=0);
 bool bOut = false;
-fd_set rfds;
-fd_set wfds;
-
-struct timeval tv;
+struct pollfd fds[3];
 
 char buf[BUFFER_SIZE]={'\0'};
 
@@ -59,36 +57,31 @@ int main(int argc,char* argv[], char** env)
 	sleep(1);
 
 	//printf("\nwait open...");
-	pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0], /*O_WRONLY*/ O_RDWR);//blocking with O_WRONLY
-	if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
+	fds[2].fd = open(&filename[FIFO_OUT][0], /*O_WRONLY*/ O_RDWR);//blocking with O_WRONLY
+	fds[2].events = POLLOUT;
+	if(fds[2].fd==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
 
-	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0], /*O_RDONLY*/ O_RDWR);
-	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
+	fds[1].fd = open(&filename[FIFO_IN][0], /*O_RDONLY*/ O_RDWR);
+	fds[1].events = POLLIN;
+	if(fds[1].fd==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
+
+	fds[0].fd = 0; //stdin
+	fds[0].events = POLLIN;
 
 	sleep(1);
 
 	int i=0;
 	while(bOut==false)
 	{
-	   FD_ZERO(&rfds);
-	   FD_ZERO(&wfds);
-	   
-	   FD_SET(pipe_fd[FIFO_OUT],&wfds);
-	   FD_SET(pipe_fd[FIFO_IN],&rfds);
-	   FD_SET(0,&rfds);
-
-	   tv.tv_sec = 15;
-	   tv.tv_usec = 0;
-	
-	   int ready = select(pipe_fd[FIFO_IN]+1,&rfds,&wfds,NULL,&tv);
-	   if(!ready){perror("select"); continue; }
+	   int ready = poll(&fds[0], 3, 5000);
+	   if(ready==0){perror("poll"); continue; }
+	   if(ready<0){perror("poll"); break; }
 
 	    int rez=0;
-
-	    if(FD_ISSET(0,&rfds))
+	    if( fds[0].revents & POLLIN )
 	    {
 		char bufr[BUFFER_SIZE]={'\0'};// вычитал в свой массив ввод пользователя
-		rez=read(0,bufr,BUFFER_SIZE);
+		rez=read(fds[0].fd,bufr,BUFFER_SIZE);
                 if(rez==-1) {printf("Read error on pipein");}
             
 		int i=0;
@@ -98,14 +91,14 @@ int main(int argc,char* argv[], char** env)
 		}
 		buf[i]= '\0';
 
-		rez = write(pipe_fd[FIFO_OUT],buf,strlen(buf));
+		rez = write(fds[2].fd,buf,strlen(buf));
 		if(rez==-1) {printf("Write error on pipeout");}
 	    }
 
-	    if(FD_ISSET(pipe_fd[FIFO_IN],&rfds))
+	    if( fds[1].revents & POLLIN )
 	    {
 		char bufr[BUFFER_SIZE]={'\0'};
-		rez=read(pipe_fd[FIFO_IN],bufr,BUFFER_SIZE);
+		rez=read(fds[1].fd,bufr,BUFFER_SIZE);
 		if(rez==-1) {printf("Read error on pipein"); break;}
 		printf("\n\t<-[%d]: ",rez);
 		for(int i=0;i<rez;i++)

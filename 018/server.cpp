@@ -39,10 +39,7 @@ int  parserRequest(const char* str,char*,int n);
 
 char logMsg[BUFSIZ]={'\0'};
 int pidd;
-
 bool bDeamon = false;
-
-void myprintf(char* str);
 
 int main(int argc, char* argv[])
 {
@@ -64,20 +61,15 @@ int main(int argc, char* argv[])
 
     		if (pid == -1)
     		{
-        		//perror("start daemon");
+        		perror("start daemon");
 	        	return 0;
     		}else if (!pid) //child - deamon
     		{
 			pidd = getsid(pid);// возвращает идентификатор (ID) сессии, вызвавшего процесса
 
-			//if(pidd!=-1){ umask(0); if(setsid()!=-1){bDeamon=true;}else{perror("setsid");}}//создает новый сеанс
-			//else perror("getsid");
-
 			 bDeamon=true;
 			 if(pidd!=-1)
 			 {
-				sprintf(logMsg,"DEAMON setsid");
-       			 	syslog(0, logMsg, strlen(logMsg));
 				if(setsid()==-1)
 				{
 					sprintf(logMsg,"DEAMON setsid error (errno %d)",errno);
@@ -97,14 +89,12 @@ int main(int argc, char* argv[])
     	{port = atoi(argv[1]);}
     }
 
-    //printf("\nport %d\n",port);
-
     if(bDeamon)
     {
     	pidd = getpid();
 	sprintf(logMsg,"START DEAMON (PID %d): port %d",pidd,port);
     	syslog(0, logMsg, strlen(logMsg));
-    }
+    }else printf("\nport %d\n",port);
 
     int sock, listener;
     char buf[BUFSIZ];
@@ -120,7 +110,7 @@ int main(int argc, char* argv[])
       
 	if(bDeamon)
         {
-              sprintf(logMsg,"ERROR DEAMON: socket (errno %d)",errno);
+	      strerror_r(errno,logMsg, BUFSIZ);
               syslog(0, logMsg, strlen(logMsg));
          }else perror("socket");
 
@@ -132,15 +122,20 @@ int main(int argc, char* argv[])
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
     int optval = 1;
-    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1){perror("SO_REUSEADDR:"); }
+    if(setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)==-1)
+    {
+	if(bDeamon)
+        {
+	      strerror_r(errno,logMsg, BUFSIZ);
+              syslog(0, logMsg, strlen(logMsg));
+         }else perror("SO_REUSEADDR:"); 
+    }
 
     if(bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
       
 	if(bDeamon)
 	{
-		//sprintf(logMsg,"ERROR DEAMON: bind (errno %d)",errno);
-        	//syslog(0, logMsg, strlen(logMsg));
 		strerror_r(errno,logMsg, BUFSIZ);
 		syslog(0, logMsg, strlen(logMsg));
 	}else   perror("bind");
@@ -162,19 +157,12 @@ int main(int argc, char* argv[])
             
 	    if(bDeamon)
             { 
-                sprintf(logMsg,"ERROR DEAMON: accept (errno %d)",errno);
+		strerror_r(errno,logMsg, BUFSIZ);
                 syslog(0, logMsg, strlen(logMsg));
             }else perror("accept");
 
             return 0;
         }
-
-	
-	if(bDeamon)
-        { 
-                sprintf(logMsg,"Server connected %d! Create socket %x\n",iConnect+1,sock);
-                syslog(0, logMsg, strlen(logMsg));
-        }else printf("\nServer connected %d! Create socket %x\n",iConnect+1,sock);
 
         param[iConnect].sockTh = sock;
         param[iConnect].addr = addrCli[iConnect];
@@ -184,16 +172,17 @@ int main(int argc, char* argv[])
         iConnect++;
    }
 
-   //printf("\nWait threads...");
    for(int i=0;i<iConnect;i++)
    {
    	pthread_join(thId[i],NULL);
         pthread_cancel(thId[i]);
    }
 
-    if(bDeamon){
-    sprintf(logMsg,"STOP DEAMON (PID %d): port %d",pidd,port);
-    syslog(0, logMsg, strlen(logMsg));}
+    if(bDeamon)
+    {
+    	sprintf(logMsg,"STOP DEAMON (PID %d): port %d",pidd,port);
+    	syslog(0, logMsg, strlen(logMsg));
+    }
  
     return 0;
 }
@@ -206,9 +195,15 @@ void * funcThread(void* pVoid)
         {
             char buf[BUFSIZ]={'\0'};
             bytes_read = recv(pparam->sockTh, buf, BUFSIZ, 0);
-            if(bytes_read <= 0) perror("");
+            if(bytes_read <= 0) 
+	    {
+		if(bDeamon)
+	        { 
+			strerror_r(errno,logMsg, BUFSIZ);
+                	syslog(0, logMsg, strlen(logMsg));
+            	}else perror("recv in thread");
+	    }
 	    buf[bytes_read] = '\0';
-	   // printf("\n%s\n",buf);
 
 	    //разобрать заголовок
 	    char nameRequest[BUFSIZ];
@@ -222,11 +217,10 @@ void * funcThread(void* pVoid)
 	    {
 		int len = makeResponseImg(response, sizeof (response),nameRequest);
 		head(answer,len,rez);
-		//printf("\nanwer:\n%s\n",answer);
+
 		int na = strlen(answer);
 		sendto(pparam->sockTh, answer, na,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 
-		//printf("\nnimg %d",len);
 		int total = 0;
     		int n;
 
@@ -235,14 +229,13 @@ void * funcThread(void* pVoid)
         		n = sendto(pparam->sockTh, response+total, len-total,0,( struct sockaddr *)(&pparam->addr),pparam->n);
 		        if(n == -1) { break; }
 		        total += n;
-		//	printf(" Send: %d",n);
     		}
 	    }
             else if( rez==0 )
 	    {
 		int len = makeResponseText(response, BUFSIZ,nameRequest);
 		head(answer,len,rez);
-		//printf("\nanwer:\n%s\n",answer);
+
 		strcat(answer,response);
 		sendto(pparam->sockTh, answer, strlen(answer),0,( struct sockaddr *)(&pparam->addr),pparam->n);
 	    } else 
@@ -256,7 +249,6 @@ void * funcThread(void* pVoid)
 
         shutdown(pparam->sockTh, 2);
         close(pparam->sockTh);
-        //printf("\nclose socket %d",pparam->sockTh);
 
         return 0;
 }
@@ -268,7 +260,6 @@ int parserRequest(const char* str,char *name, int n)
 	if(pp) 
 	{
 		strcpy(name,"index.html"); 
-		//printf("\nfinded: index.html"); 
 		return 0;
 	}	
 
@@ -279,7 +270,6 @@ int parserRequest(const char* str,char *name, int n)
 	if(pp)
 	{
 		strcpy(name,"Images/IMG_0599.JPG"); return 1;
-	//	printf("\nfinded: IMG");
 	}
 	return -1;
 }
@@ -309,8 +299,12 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
         fd = fopen(imgFile,"rb");
         if(fd==NULL)
         {
-		//printf("\nError fopen ' %s '",imgFile);
-		//perror("");
+		if(bDeamon)
+	        { 
+			strerror_r(errno,logMsg, BUFSIZ);
+                	syslog(0, logMsg, strlen(logMsg));
+            	}else perror("Error make response for img");
+
                 return 0;
         }
 
@@ -319,14 +313,11 @@ int makeResponseImg(char* response, int nr,const char* imgFile)
 	{
 		//считываем элемент
 		fread(response+i, sizeof(char), 1, fd);
-		//printf("%x",response[i]);
 		i++;
 		if(i>=nr) break;
 	}
 
 	nread = i-1;
-
-	//printf("\n[length img %d]\n",nread);
 
 	fclose(fd);
 	return nread;
@@ -341,7 +332,12 @@ int makeResponseText(char* response, int nr,const char* htmlFile)
 	strcpy(response,"");
         fd = fopen(htmlFile,"r");
         if(fd==NULL)
-        {     //  printf("\nError fopen ' %s '",htmlFile);
+        {    
+		if(bDeamon)
+	        { 
+			strerror_r(errno,logMsg, BUFSIZ);
+                	syslog(0, logMsg, strlen(logMsg));
+            	}else perror("Error make response for text");
                 return 0;
         }
 	
@@ -351,8 +347,6 @@ int makeResponseText(char* response, int nr,const char* htmlFile)
 	response[i] = '\0';
 	nread = strlen(response);
 
-	//printf("\n[length %i]\n%s",nread,response);
-
 	fclose(fd);
 	return nread;
 }
@@ -361,7 +355,6 @@ void out(int sig)
 {
     if(sig==SIGTERM||sig == SIGINT)
     {
-        //printf("\nGoodbye server (sig %d)'\n",sig);
 
         bOut=true;
         for(int i=0;i<iConnect;i++)
@@ -374,18 +367,9 @@ void out(int sig)
 	{
 		sprintf(logMsg,"STOP DEAMON (kill %d)(PID %d): port %d",sig,pidd,port);
 		syslog(0, logMsg, strlen(logMsg));
-	}
+	}else printf("\nGoodbye server (sig %d)'\n",sig);
 
         exit(0);
     }
 }
 
-
-void myprintf(char* str, bool  _bDeamon)
-{
-	if(_bDeamon)
-	{
-		sprintf(logMsg,"%s",str);
-		syslog(0, logMsg, strlen(logMsg));
-	}else{printf("%s",str);}
-}

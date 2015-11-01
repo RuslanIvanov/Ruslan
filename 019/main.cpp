@@ -19,12 +19,11 @@ int pipe_fd[2];
 char filename[2][BUFSIZ];
 void out(int sig=0);
 bool bOut = false;
-
 fd_set rfds;
 fd_set wfds;
+
 struct timeval tv;
 
-void * funcThread(void*);
 char buf[BUFFER_SIZE]={'\0'};
 pthread_t thId;
 
@@ -59,66 +58,57 @@ int main(int argc,char* argv[], char** env)
 	    printf("\nmkfifo %s",&filename[i][0]);
 	}
 	sleep(1);
-	printf("\nwait open...");printf("\nwait open...");
-	pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0], /*O_WRONLY*/ O_RDWR);//blocking
+
+	//printf("\nwait open...");
+	pipe_fd[FIFO_OUT] = open(&filename[FIFO_OUT][0], /*O_WRONLY*/ O_RDWR);//blocking with O_WRONLY
 	if(pipe_fd[FIFO_OUT]==-1) {printf("\nError open1\n"); perror(&filename[FIFO_OUT][0]); return 0;}
 
 	pipe_fd[FIFO_IN] = open(&filename[FIFO_IN][0], /*O_RDONLY*/ O_RDWR);
 	if(pipe_fd[FIFO_IN]==-1) { printf("\nError open2\n"); perror(&filename[FIFO_IN][0]); return 0;}
 
-	pthread_create(&thId, NULL, funcThread, NULL);
 	sleep(1);
-	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
-//	    FD_SET(0,&rfds);
-	    FD_SET(pipe_fd[FIFO_IN],&rfds);
+
 	int i=0;
 	while(bOut==false)
 	{
-	   // char buf[BUFFER_SIZE]={'\0'};
-//	    printf("\nwrite: ");
-//            gets(&buf[0]);
+	   FD_ZERO(&rfds);
+	   FD_ZERO(&wfds);
+	   
+	   FD_SET(pipe_fd[FIFO_OUT],&wfds);
+	   FD_SET(pipe_fd[FIFO_IN],&rfds);
+	   FD_SET(0,&rfds);
 
-	    FD_ZERO(&rfds);
-	    FD_ZERO(&wfds);//obnuljat pered kagdim select
-
-//	    FD_SET(pipe_fd[FIFO_OUT],&wfds);
-//	    FD_SET(0,&rfds);
-//	    FD_SET(pipe_fd[FIFO_IN],&rfds);
-
-	    tv.tv_sec = 15;
-	    tv.tv_usec = 0;
-
-	    //printf("\nwait select...");
-	    int ready = select(10/*pipe_fd[FIFO_IN]+1*/,&rfds,&wfds,NULL,&tv);
-	    if(!ready){perror("select"); continue; }
+	   tv.tv_sec = 15;
+	   tv.tv_usec = 0;
+	
+	   int ready = select(pipe_fd[FIFO_IN]+1,&rfds,&wfds,NULL,&tv);
+	   if(!ready){perror("select"); continue; }
 
 	    int rez=0;
 
-	    /*if(FD_ISSET(0,&rfds))
+	    if(FD_ISSET(0,&rfds))
 	    {
-		printf("\nuser input: ");
 		char bufr[BUFFER_SIZE]={'\0'};// вычитал в свой массив ввод пользователя
 		rez=read(0,bufr,BUFFER_SIZE);
                 if(rez==-1) {printf("Read error on pipein");}
-                printf("\n\tread[%d]: ",rez);
-                for(int i=0;i<rez;i++)
-                {printf("%c",bufr[i]);}
-	    }*/
+            
+		int i=0;
+                for(;i<rez;i++)
+                {
+			buf[i] = bufr[i];
+		}
+		buf[i]= '\0';
 
-	    if(FD_ISSET(pipe_fd[FIFO_OUT],&wfds))
-	    {
 		rez = write(pipe_fd[FIFO_OUT],buf,strlen(buf));
 		if(rez==-1) {printf("Write error on pipeout");}
-
-		//printf("\nwrited %d bytes",rez);
 	    }
 
 	    if(FD_ISSET(pipe_fd[FIFO_IN],&rfds))
 	    {
 		char bufr[BUFFER_SIZE]={'\0'};
 		rez=read(pipe_fd[FIFO_IN],bufr,BUFFER_SIZE);
-		if(rez==-1) {printf("Read error on pipein");}
-		printf("\n\tread pipe[%d]: ",rez);
+		if(rez==-1) {printf("Read error on pipein"); break;}
+		printf("\n\t<-[%d]: ",rez);
 		for(int i=0;i<rez;i++)
 		{printf("%c",bufr[i]);}
 	    }
@@ -136,25 +126,11 @@ int main(int argc,char* argv[], char** env)
     return 0;
 }
 
-void * funcThread(void* pVoid)
-{
-        while(bOut==false)
-	{
-	      printf("\nenter msg: ");
-              gets(&buf[0]);
-	}
-}
-
 void out(int sig)
 {
     if(sig==SIGTERM||sig == SIGINT)
     {
 	printf("\nGoodbye chat(signal %d)\n",sig);
-
 	bOut=true;
-
-	//unlink(&filename[FIFO_OUT][0]);
-        //unlink(&filename[FIFO_IN][0]);
-	exit(0);
-    }
+   }
 }

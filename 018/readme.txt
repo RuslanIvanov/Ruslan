@@ -5,6 +5,5 @@ http://localhost:8080/index.html
 или
 http://localhost:8080
 
-#Error
-deamon завершается сам при обр. браузера
-сайт не работает
+#запуск сервера - процесса: ./server 8080 
+#запуск сервера - демона: ./server 8080 -deamon 

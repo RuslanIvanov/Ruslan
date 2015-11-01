@@ -82,11 +82,21 @@ int main(int argc, char* argv[])
 			close(STDOUT_FILENO);
 			close(STDERR_FILENO);
 
-    		}else { printf ("\nExit parent"); return 0;}// parent
+    		}else { printf ("\nExit parent\n"); return 0;}// parent
 	 }else printf("\nstart process...\n");
 
     	if(argc==2 || argc == 3)
     	{port = atoi(argv[1]);}
+    }
+
+    if(port==0)
+    {
+	if(bDeamon)
+	{
+		sprintf(logMsg,"Error params in command string by deamon");
+        	syslog(0, logMsg, strlen(logMsg));
+	}else printf("\nError params in command string by server\n");
+	return 0;
     }
 
     if(bDeamon)

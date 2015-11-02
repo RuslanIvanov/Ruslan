@@ -60,7 +60,7 @@ int main(int argc,char* argv[], char** env)
 		i=i+size;
 	}*/
 
-	qsort(pmmap, statbuf.st_size, size, comp);
+	qsort(pmmap, statbuf.st_size/size, size, comp);
 
 	munmap(0,statbuf.st_size);
 	close(fds);

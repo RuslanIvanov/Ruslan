@@ -19,7 +19,8 @@ struct stat statbuf;
 
 int comp(const void *i, const void *j)
 {
- 	return *(int *)i - *(int *)j;
+	//printf("\nsort: %x & %x",*(int *)i, *(int *)j);
+ 	return *(char *)i - *(char *)j;
 }
 
 int main(int argc,char* argv[], char** env)
@@ -28,7 +29,7 @@ int main(int argc,char* argv[], char** env)
     signal (SIGINT, out);
 
     int opt;
-    while((opt= getopt(argc, argv, "s:f:h")) != -1)
+    while((opt = getopt(argc, argv, "s:f:h")) != -1)
     switch(opt)
     {
         case 'f': sscanf(optarg,"%s",&filename[0]); break;
@@ -54,13 +55,10 @@ int main(int argc,char* argv[], char** env)
 		perror("mmap"); return 0;
 	}
 
-	/*int i=0;
-	while(i<=statbuf.st_size)
-	{	   
-		i=i+size;
-	}*/
-
-	qsort(pmmap, statbuf.st_size/size, size, comp);
+	for(int i=0;i<statbuf.st_size/*/size*/;i=i+size)
+	//	for(int j = 0; j<size;j++)
+			qsort((char*)pmmap+i, size, sizeof(char), comp);
+//	qsort(pmmap, statbuf.st_size/size, size, comp);
 
 	munmap(0,statbuf.st_size);
 	close(fds);

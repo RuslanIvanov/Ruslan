@@ -58,6 +58,7 @@ int main(int argc,char* argv[], char** env)
 	    memf.sizeItem = sizeof(int);
 	    memf.count = 0;
 	    memf.max=max;	   
+	    memcpy(shared_memory, &memf,sizeof(struct memFormat));
 
 	    printf("Memory attached at %p,data attached at %p\n", shared_memory,pitem);
 
@@ -118,6 +119,8 @@ void * funcThreadW(void* param)
 
 	    if(p->count < p->max) p->count++;
 
+	    memcpy(shared_memory, &memf,sizeof(struct memFormat));
+
 	    pthread_mutex_unlock(&mutex);
 	    sleep(1);
 	}
@@ -135,6 +138,8 @@ void * funcThreadR(void* param)
 	
 	int rez  =  *(pitem + p->count);
 	if(p->count>0) p->count--; 
+
+	memcpy(shared_memory, &memf,sizeof(struct memFormat));
 
 	pthread_mutex_unlock(&mutex);
 	sleep(1);

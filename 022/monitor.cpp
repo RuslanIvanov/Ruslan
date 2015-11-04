@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/shm.h>
+#include <signal.h>
 
 void *shared_memory = (void *)0;
 struct memFormat
@@ -13,50 +14,58 @@ struct memFormat
 	int max; 
 };
 memFormat memf;
+void out(int sig);
+bool bOut;
+int *pitem;
 
 int main()
 {
-    int running = 1;
+    signal (SIGTERM, out);
+    signal (SIGINT, out);
 
-    struct shared_use_st *shared_stuff;
-    char buffer[BUFSIZ];
     int shmid;
+    //Какой размер выделять как узнать?
+    shmid = shmget((key_t)1234, sizeof(struct memFormat), 0666 /*| IPC_CREAT*/);
 
-    shmid = shmget((key_t)1234, sizeof(struct shared_use_st), 0666 | IPC_CREAT);
+    if (shmid == -1)  {perror("shmget");return 0;}
 
-    if (shmid == -1) {
-        fprintf(stderr, "shmget failed\n");
-        exit(EXIT_FAILURE);
-    }
+    shared_memory = shmat(shmid, (void *)0, SHM_RDONLY);
+    if (shared_memory == (void *)-1) {perror("shmat");return 0;}
 
-    shared_memory = shmat(shmid, (void *)0, 0);
-    if (shared_memory == (void *)-1) {
-        fprintf(stderr, "shmat failed\n");
-        exit(EXIT_FAILURE);
-    }
+    pitem = (int*)shared_memory+sizeof(struct memFormat);
+    printf("Monitor memory attached at %p,data attached at %p\n", shared_memory,pitem);
 
-    printf("Memory attached at %X\n", (int)shared_memory);
-
-    shared_stuff = (struct shared_use_st *)shared_memory;
-    while(running) {
-        while(shared_stuff->written_by_you == 1) {
-            sleep(1);            
-            printf("waiting for client...\n");
-        }
-        printf("Enter some text: ");
-        fgets(buffer, BUFSIZ, stdin);
+    memcpy(&memf,shared_memory, sizeof(struct memFormat));
+	
+    printf("memory pid %d:\n sizeItem %d, count %d, max %d",memf.pidMaster,memf.sizeItem,memf.count,memf.max);
+    while(bOut==false) 
+    {
         
-        strncpy(shared_stuff->some_text, buffer, TEXT_SZ);
-        shared_stuff->written_by_you = 1;
+        sleep(1);  
+	int count1=0;
+memcpy(&memf,shared_memory, sizeof(struct memFormat));	
+	//sem и читать count постоянно
+	for(int vi=0;vi<memf.count;vi++)
+	{
+		if(*pitem==1) count1++;
+		printf("%d.",*pitem);
+		pitem++;
+	}
 
-        if (strncmp(buffer, "end", 3) == 0) {
-                running = 0;
-        }
+	//sem
+	printf("\nnumber '1': %d.",count1);          
+        
     }
 
-    if (shmdt(shared_memory) == -1) {
-        fprintf(stderr, "shmdt failed\n");
-        exit(EXIT_FAILURE);
+    if (shmdt(shared_memory) == -1) {perror("shmat");}
+    printf("\nExit...\n");
+}
+
+void out(int sig)
+{
+    if(sig==SIGTERM || sig == SIGINT)
+    {
+	printf("\nGoodbye (signal %d)\n",sig);
+	bOut=true;
     }
-    exit(EXIT_SUCCESS);
 }

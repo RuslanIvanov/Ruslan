@@ -11,10 +11,9 @@
 #include <sys/mman.h>
 
 unsigned int size=256;
-char filename[BUFSIZ];
+char filename[BUFSIZ]="";
 void out(int sig=0);
 bool bOut = false;
-//char buf[BUFSIZ]={'\0'};
 struct stat statbuf; 
 
 int comp(const void *i, const void *j)
@@ -25,23 +24,24 @@ int comp(const void *i, const void *j)
 
 int main(int argc,char* argv[], char** env)
 {
-    signal (SIGTERM, out);
-    signal (SIGINT, out);
+    	signal (SIGTERM, out);
+    	signal (SIGINT, out);
 
-    int opt;
-    while((opt = getopt(argc, argv, "s:f:h")) != -1)
-    switch(opt)
-    {
+    	int opt;
+    	while((opt = getopt(argc, argv, "s:f:h")) != -1)
+    	switch(opt)
+    	{
         case 'f': sscanf(optarg,"%s",&filename[0]); break;
         case 's': sscanf(optarg,"%d",&size); break;
-        case 'h':default:
+        case 'h':case '?':default:
 		printf("\nargv:\n");
 		printf("\t-f\t file name\n");
 		printf("\t-s\t size block\n");
         	return 0;
 	}
 
-	printf("\nfile in ' %s ', size ' %d ', exit ' Ctrl+C '\n",filename,size);	
+	printf("\nfile in ' %s ', size ' %d ', exit ' Ctrl+C '\n",filename,size);
+	if(size>256) {printf("\nError size, max=256 bytes\n");return 0;}	
 
 	int fds = open(filename, O_RDWR);
 	if(fds==-1) {perror("open"); return 0;}
@@ -55,17 +55,18 @@ int main(int argc,char* argv[], char** env)
 		perror("mmap"); return 0;
 	}
 
-	for(int i=0;i<statbuf.st_size/*/size*/;i=i+size)
-	//	for(int j = 0; j<size;j++)
-			qsort((char*)pmmap+i, size, sizeof(char), comp);
-//	qsort(pmmap, statbuf.st_size/size, size, comp);
+	for(int i=0;i<statbuf.st_size;i=i+size)
+	{
+		qsort((char*)pmmap+i, size, sizeof(char), comp);
+	 	msync((char*)pmmap+i, size, MS_SYNC); 
+	}
 
 	munmap(0,statbuf.st_size);
 	close(fds);
 
-    printf("\n\nExit...\n");
+    	printf("\n\nExit...\n");
 
-    return 0;
+    	return 0;
 }
 
 void out(int sig)

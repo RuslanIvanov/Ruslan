@@ -49,9 +49,9 @@ int main(int argc,char* argv[], char** env)
     	    if (shmid == -1) 
 	    {perror("shmget");return 0;}
 
-    	   shared_memory = shmat(shmid, (void *)0, 0);
-    	   if (shared_memory == (void *)-1) 
-	   {perror("shmat");return 0;}
+    	    shared_memory = shmat(shmid, (void *)0, 0);
+    	    if (shared_memory == (void *)-1) 
+	    {perror("shmat");return 0;}
 		
 	    pitem = (int*)shared_memory+sizeof(struct memFormat);
 	    memf.pidMaster = getpid();
@@ -74,7 +74,7 @@ int main(int argc,char* argv[], char** env)
 	    while(bOut==false)
 	    {
   	    	
-		int count1=0;
+		/*int count1=0;
 		pthread_mutex_lock(&mutex);
 	    	for(int vi=0;vi<memf.count;vi++)
 	    	{
@@ -86,8 +86,8 @@ int main(int argc,char* argv[], char** env)
 	    	}
 
 		pthread_mutex_unlock(&mutex);
+		printf("\nnumber '1': %d.",count1);*/
 		sleep(1);
-		printf("\nnumber '1': %d.",count1);
 
 	    }
 
@@ -99,7 +99,7 @@ int main(int argc,char* argv[], char** env)
 	    delete [] thId;
 
 	    if(shmdt(shared_memory) == -1) {perror("shmdt");}
-	    if (shmctl(shmid, IPC_RMID, 0) == -1) {perror("shmctl");}
+	    if(shmctl(shmid, IPC_RMID, 0) == -1) {perror("shmctl");}
     }else {printf("\n Error. Please, set command string 'nr' 'nw' 'maxth'");}
 
     printf("\n\nExit...\n");

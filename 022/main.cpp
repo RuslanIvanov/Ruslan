@@ -9,11 +9,12 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/shm.h>
-
+#include <sys/syscall.h> 
+#include "lib/libsem.h"
 //th1 - write 1; th2 - read 0;  for -read count
 using namespace std;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void out(int sig);
 bool bOut;
 void *shared_memory = (void *)0;
@@ -25,9 +26,19 @@ struct memFormat
 	unsigned int count;
 	int max; 
 };
+
 memFormat memf;
 int shmid;
 int *pitem;
+int sem_id ;
+
+long  getTid()
+{
+    long tid;
+    tid = syscall(SYS_gettid);
+    return tid;
+}
+
 
 void * funcThreadW(void* pi);
 void * funcThreadR(void* pi);
@@ -42,7 +53,7 @@ int main(int argc,char* argv[], char** env)
 	    int nw =  atoi(argv[2]);
 	    int max = atoi(argv[3]);
 
-	    pthread_mutex_init(&mutex, NULL);
+	    //pthread_mutex_init(&mutex, NULL);
 
 	    shmid = shmget((key_t)1234, sizeof(struct memFormat)+(max*sizeof(int)), 0666 | IPC_CREAT);
 
@@ -62,6 +73,11 @@ int main(int argc,char* argv[], char** env)
 
 	    printf("Memory attached at %p,data attached at %p\n", shared_memory,pitem);
 
+	    sem_id = createSem(1,12345);
+	    if(sem_id==-1) {perror("createSem"); return 0;}
+	
+    	    if(set_semvalue(sem_id,0)==-1) {perror("set_semvalue"); return 0;}
+
 	    pthread_t* thId= new pthread_t[nr+nw];
 
 	    for(int i=0;i<nw;i++)
@@ -71,30 +87,14 @@ int main(int argc,char* argv[], char** env)
 	    pthread_create(thId+i, NULL, funcThreadR, (void*)&memf);
 
             printf("\nmem has size %d\n",sizeof(struct memFormat)+(max*sizeof(int)));
-	    while(bOut==false)
-	    {
-  	    	
-		/*int count1=0;
-		pthread_mutex_lock(&mutex);
-	    	for(int vi=0;vi<memf.count;vi++)
-	    	{
-			if(*pitem==1) count1++;
-			
-			printf("%d.",*pitem);
-			pitem++;
 
-	    	}
-
-		pthread_mutex_unlock(&mutex);
-		printf("\nnumber '1': %d.",count1);*/
-		sleep(1);
-
-	    }
-
+//	    while(bOut==false){sleep(1);}
+	    printf("\nwait threads...");
 	    for(int i=0;i<(nr+nw);i++)
 		pthread_join(thId[i],NULL);
 
-	    pthread_mutex_destroy(&mutex);
+	    del_semvalue(sem_id,0);
+	   // pthread_mutex_destroy(&mutex);
 
 	    delete [] thId;
 
@@ -110,41 +110,46 @@ int main(int argc,char* argv[], char** env)
 void * funcThreadW(void* param)
 {
         struct memFormat *p = (struct memFormat *)param;
-	printf("\nRUN TASK WRITE %d",p->pidMaster);
+	printf("\nRUN TASK WRITE %ld",getTid());
 	while(bOut==false)
 	{
-	    pthread_mutex_lock(&mutex);
-	   
+	  //  pthread_mutex_lock(&mutex);
+	   if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
+
 	    *(pitem + p->count) =  1;
-
+	    printf("\nw:%d",*(pitem + p->count));
 	    if(p->count < p->max) p->count++;
-
 	    memcpy(shared_memory, &memf,sizeof(struct memFormat));
-
-	    pthread_mutex_unlock(&mutex);
+	   
+	    if(!semaphore_v(sem_id)) {perror("semaphore_v");break;}
+	  //  pthread_mutex_unlock(&mutex);
 	    sleep(1);
 	}
-	printf("\nEXIT TASK %d",p->pidMaster);
+	printf("\nEXIT TASK %ld",getTid());
 	return 0;
 }
 
 void * funcThreadR(void* param)
 {
      struct memFormat *p = (struct memFormat *)param;
-    printf("\nRUN TASK READ  %d",p->pidMaster);
+    printf("\nRUN TASK READ  %ld",getTid());
     while(bOut==false)
     {
-	pthread_mutex_lock(&mutex);
-	
-	int rez  =  *(pitem + p->count);
-	if(p->count>0) p->count--; 
+	//pthread_mutex_lock(&mutex);
 
+	if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
+
+	*(pitem + p->count)=0;
+        printf("\nr %d",*(pitem + p->count));
+	if(p->count>0) p->count--; 
 	memcpy(shared_memory, &memf,sizeof(struct memFormat));
 
-	pthread_mutex_unlock(&mutex);
+	if(!semaphore_v(sem_id)) {perror("semaphore_v");break;}
+
+	//pthread_mutex_unlock(&mutex);
 	sleep(1);
     }
-    printf("\nEXIT TASK %d",p->pidMaster);
+    printf("\nEXIT TASK %ld",getTid());
     return 0;
 }
 

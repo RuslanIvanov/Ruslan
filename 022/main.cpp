@@ -14,18 +14,9 @@
 //th1 - write 1; th2 - read 0;  for -read count
 using namespace std;
 
-//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void out(int sig);
 bool bOut;
 void *shared_memory = (void *)0;
-
-struct memFormat
-{
-	pid_t pidMaster;
-	unsigned int sizeItem;
-	unsigned int count;
-	int max; 
-};
 
 memFormat memf;
 int shmid;
@@ -52,8 +43,6 @@ int main(int argc,char* argv[], char** env)
 	    int nr =  atoi(argv[1]);
 	    int nw =  atoi(argv[2]);
 	    int max = atoi(argv[3]);
-
-	    //pthread_mutex_init(&mutex, NULL);
 
 	    shmid = shmget((key_t)1234, sizeof(struct memFormat)+(max*sizeof(int)), 0666 | IPC_CREAT);
 
@@ -88,14 +77,12 @@ int main(int argc,char* argv[], char** env)
 
             printf("\nmem has size %d\n",sizeof(struct memFormat)+(max*sizeof(int)));
 
-//	    while(bOut==false){sleep(1);}
 	    printf("\nwait threads...");
 	    for(int i=0;i<(nr+nw);i++)
 		pthread_join(thId[i],NULL);
 
 	    del_semvalue(sem_id,0);
-	   // pthread_mutex_destroy(&mutex);
-
+	
 	    delete [] thId;
 
 	    if(shmdt(shared_memory) == -1) {perror("shmdt");}
@@ -113,7 +100,7 @@ void * funcThreadW(void* param)
 	printf("\nRUN TASK WRITE %ld",getTid());
 	while(bOut==false)
 	{
-	  //  pthread_mutex_lock(&mutex);
+	
 	   if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
 
 	    *(pitem + p->count) =  1;
@@ -122,7 +109,7 @@ void * funcThreadW(void* param)
 	    memcpy(shared_memory, &memf,sizeof(struct memFormat));
 	   
 	    if(!semaphore_v(sem_id)) {perror("semaphore_v");break;}
-	  //  pthread_mutex_unlock(&mutex);
+
 	    sleep(1);
 	}
 	printf("\nEXIT TASK %ld",getTid());
@@ -131,11 +118,10 @@ void * funcThreadW(void* param)
 
 void * funcThreadR(void* param)
 {
-     struct memFormat *p = (struct memFormat *)param;
+    struct memFormat *p = (struct memFormat *)param;
     printf("\nRUN TASK READ  %ld",getTid());
     while(bOut==false)
     {
-	//pthread_mutex_lock(&mutex);
 
 	if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
 
@@ -146,7 +132,6 @@ void * funcThreadR(void* param)
 
 	if(!semaphore_v(sem_id)) {perror("semaphore_v");break;}
 
-	//pthread_mutex_unlock(&mutex);
 	sleep(1);
     }
     printf("\nEXIT TASK %ld",getTid());

@@ -28,4 +28,12 @@ int  semaphore_v(int sem_id);
 int  semaphore_p(int sem_id);
 int  createSem(int num_sem,key_t key);
 
+struct memFormat
+{
+	pid_t pidMaster;
+	unsigned int sizeItem;
+	unsigned int count;
+	int max; 
+};
+
 #endif

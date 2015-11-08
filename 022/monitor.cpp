@@ -8,13 +8,7 @@
 #include "lib/libsem.h"
 
 void *shared_memory = (void *)0;
-struct memFormat
-{
-	pid_t pidMaster;
-	unsigned int sizeItem;
-	unsigned int count;
-	int max; 
-};
+
 memFormat memf;
 void out(int sig);
 bool bOut;
@@ -31,33 +25,51 @@ int main()
     signal (SIGINT, out);
 
     int shmid;
-    //Какой размер выделять как узнать?
-    shmid = shmget((key_t)1234, sizeof(struct memFormat), 0666 /*| IPC_CREAT*/);
+    /* искать сегмент, соответствующий ключу key*/
+    shmid = shmget((key_t)1234, sizeof(struct memFormat), 0666);
 
     if (shmid == -1)  {perror("shmget");return 0;}
 
     shared_memory = shmat(shmid, (void *)0, SHM_RDONLY);
     if (shared_memory == (void *)-1) {perror("shmat");return 0;}
 
-    pitem = (int*)shared_memory+sizeof(struct memFormat);
-    printf("Monitor memory attached at %p,data attached at %p\n", shared_memory,pitem);
-
-    memcpy(&memf,shared_memory, sizeof(struct memFormat));
-	
     int sem_id = createSem(1,12345);
     if(sem_id==-1) {perror("createSem"); return 0;}
 	
     if(set_semvalue(sem_id,0)==-1) {perror("set_semvalue"); return 0;}
 
+    semaphore_p(sem_id);
+    memcpy(&memf,shared_memory, sizeof(struct memFormat)); 
+    semaphore_v(sem_id);
+
+    if (shmdt(shared_memory) == -1) {perror("shmat"); return 0;}
+
+    int size = sizeof(struct memFormat)+(memf.max*memf.sizeItem);
+    printf("Moniotr attache mem size: %d + %d=%d",sizeof(struct memFormat),(memf.max*memf.sizeItem),size);
+
+    shmid = shmget((key_t)1234, size, 0666);
+
+    if (shmid == -1)  {perror("shmget2");return 0;}
+
+    shared_memory = shmat(shmid, (void *)0, SHM_RDONLY);
+    if (shared_memory == (void *)-1) {perror("shmat2");return 0;}
+
+    pitem = (int*)shared_memory+sizeof(struct memFormat);
+    printf("Monitor memory attached at %p,data attached at %p\n", shared_memory,pitem);
+
     printf("memory pid %d:\n sizeItem %d, count %d, max %d",memf.pidMaster,memf.sizeItem,memf.count,memf.max);
+    sleep(1);
     while(bOut==false) 
     {        
-        //sleep(1);  
-	delay(100);
-	int count1=0;
-	if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
-	memcpy(&memf,shared_memory, sizeof(struct memFormat));	
+	pitem = (int*)shared_memory+sizeof(struct memFormat);
 
+	delay(500);
+	
+	int count1=0;
+
+	if(!semaphore_p(sem_id)) {perror("semaphore_p");break;}
+
+	memcpy(&memf,shared_memory, sizeof(struct memFormat));	
 	for(int vi=0;vi<memf.count;vi++)
 	{
 		if(*pitem==1) count1++;
@@ -70,7 +82,7 @@ int main()
         
     }
 
-    if (shmdt(shared_memory) == -1) {perror("shmat");}
+    if (shmdt(shared_memory) == -1) {perror("shmat2");}
     del_semvalue(sem_id,0);
     printf("\nExit...\n");
 }

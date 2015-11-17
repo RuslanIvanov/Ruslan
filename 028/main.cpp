@@ -24,8 +24,8 @@ char bufCatName[BUFSIZ];
 int pid = 0;
 int main(int argc,char* argv[], char** env)
 {
-	    if(pid==0 && i<N)// это дочерний процесс
-	    {
+	if(pid==0 && i<N)// это дочерний процесс
+	{
 		pid = fork();
 		i++;
 		if(pid==0) 
@@ -39,18 +39,17 @@ int main(int argc,char* argv[], char** env)
 			printf("\npid child %d\n", getpid());
 
 			sprintf(bufCatName,"./catMountProc_%d",i);
-	   	     	mkdir(bufCatName,555);
+			mkdir(bufCatName,555);
 		}
-	    }else{ sleep(1000); }
+	}else{ sleep(1000); }
 
-	    if(pid==-1)
-	    {perror("fork"); return -1;}
+	if(pid==-1)
+	{perror("fork"); return -1;}
 
-	    if(pid>0)
-    		{
-			printf("\nI'm the parent process ' %d '", pid);
-		    
-			if (waitpid(pid, NULL, 0) == -1) 
-			perror("waitpid");
-		}
+	if(pid>0)
+	{
+		printf("\nI'm the parent process ' %d '", pid);
+		if (waitpid(pid, NULL, 0) == -1) 
+		perror("waitpid");
+	}
 }

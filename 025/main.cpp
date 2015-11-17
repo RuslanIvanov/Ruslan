@@ -30,18 +30,18 @@ int main(int argc, char* argv[])
     signal (SIGINT, out);
 
     struct sockaddr_in addr;
-  
+
     memset(&addr,0,sizeof(struct sockaddr_in));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port); 
 
     int sock;
-   
+
     char buf[BUFSIZ];
     int bytes_read;
 
-    int listener = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-    if(listener < 0)
+    int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+    if(raw_sock < 0)
     {
         perror("socket");
         exit(1);

@@ -1,20 +1,13 @@
 #цель: зависимости
 #[tab] команда
 
-all: client server
+all: main
 
-client: client.o
-	g++ client.o -o client  -lpthread
+main: main.o
+	g++ main.o -o main  -lpthread
 
-server: server.o
-	g++ server.o -o server  -lpthread
-
-client.o: client.cpp
-	g++ -c client.cpp
-
-server.o: server.cpp
-	g++ -c server.cpp
+main.o: main.cpp
+	g++ -c main.cpp
 
 clean:
-	rm -rf *.o server
-	rm -rf *.o client
+	rm -rf *.o main

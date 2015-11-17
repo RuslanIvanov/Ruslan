@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mount.h>
+#include <sys/wait.h>
 
 using namespace std;
 int N=3;
@@ -30,7 +31,7 @@ int main(int argc,char* argv[], char** env)
 		if(pid==0) 
 		{
 			printf("\nI was a child process:\n");
-		
+
 			if(unshare(CLONE_NEWPID)==-1)
 			{perror("unshare"); return 0;}
 

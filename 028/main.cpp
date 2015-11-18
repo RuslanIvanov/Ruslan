@@ -27,9 +27,9 @@ int main(int argc,char* argv[], char** env)
 	if(pid==0 && i<N)// это дочерний процесс
 	{
 		pid = fork();
-		i++;
+		//i++;
 		if(pid==0) 
-		{
+		{i++;
 			printf("\nI was a child process:\n");
 
 			if(unshare(CLONE_NEWPID)==-1)

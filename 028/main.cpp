@@ -22,34 +22,45 @@ int N=3;
 int i=0;
 char bufCatName[BUFSIZ];
 int pid = 0;
+
 int main(int argc,char* argv[], char** env)
 {
+
+	label1:
+
 	if(pid==0 && i<N)// это дочерний процесс
 	{
-		pid = fork();
-		//i++;
-		if(pid==0) 
-		{i++;
+		sprintf(bufCatName,"./catMountProc_%d",i);
+                mkdir(bufCatName,555);
+		i++;
+
+		pid = fork();// exception, sig = SIGCHLD ???
+
+		if(pid==0)
+		{///рекурсия должна быть
 			printf("\nI was a child process:\n");
 
 			if(unshare(CLONE_NEWPID)==-1)
-			{perror("unshare"); return 0;}
+			{ perror("unshare"); return 0; }
 
-			mount("proc",bufCatName,"proc",0,NULL);
+			sleep(1);
+			if(mount("proc",bufCatName,"proc",0,NULL)==-1)
+			{ perror("mount"); return 0; }
+
+			printf("Mounting procfs at %s\n",bufCatName);
+			sleep(1);
 			printf("\npid child %d\n", getpid());
-
-			sprintf(bufCatName,"./catMountProc_%d",i);
-			mkdir(bufCatName,555);
+			goto label1;
 		}
-	}else{ sleep(1000); }
 
-	if(pid==-1)
-	{perror("fork"); return -1;}
+		if(pid==-1)
+		{perror("fork"); return -1;}
 
-	if(pid>0)
-	{
-		printf("\nI'm the parent process ' %d '", pid);
-		if (waitpid(pid, NULL, 0) == -1) 
-		perror("waitpid");
-	}
+		if(pid>0)
+		{
+			printf("\nI'm the parent process ' %d ',\nwait...", pid);
+			if (waitpid(pid, NULL, 0) == -1) 
+			perror("waitpid");
+		}
+	}else {printf("Final child sleeping\n"); execlp("sleep", "sleep", "1000", (char *) NULL);}
 }

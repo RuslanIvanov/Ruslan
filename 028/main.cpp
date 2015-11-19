@@ -39,12 +39,12 @@ int main(int argc,char* argv[], char** env)
 		{///рекурсия должна быть
 			printf("\nI was a child process:\n");
 
-			//if(unshare(CLONE_SYSVSEM|CLONE_NEWPID)==-1)
-			//{ perror("unshare"); return 0; }
+			if(unshare(CLONE_NEWPID)==-1)
+			{ perror("unshare"); return 0; }
 
-			//sleep(1);
-			//if(mount("proc",bufCatName,"proc",0,NULL)==-1)
-			//{ perror("mount"); return 0; }
+			sleep(1);
+			if(mount("proc",bufCatName,"proc",0,NULL)==-1)
+			{ perror("mount"); return 0; }
 
 			printf("Mounting procfs at %s\n",bufCatName);
 			sleep(1);

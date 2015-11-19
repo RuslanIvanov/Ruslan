@@ -27,7 +27,7 @@ int main(int argc,char* argv[], char** env)
 {
 
 	label1:
-	
+
 	if(pid==0 && i<N)// это дочерний процесс
 	{
 		sprintf(bufCatName,"./catMountProc_%d",i);
@@ -50,7 +50,7 @@ int main(int argc,char* argv[], char** env)
 			sleep(1);
 			printf("\npid child %d\n", getpid());
 			i++;
-			
+
 			goto label1;
 
 		}

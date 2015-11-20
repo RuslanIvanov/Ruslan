@@ -22,24 +22,24 @@ int N=3;
 int i=0;
 char bufCatName[BUFSIZ];
 int pid = 0;
-
+int count;
 int main(int argc,char* argv[], char** env)
 {
-
 	label1:
 
 	if(pid==0 && i<N)// это дочерний процесс
 	{
 		sprintf(bufCatName,"./catMountProc_%d",i);
-                mkdir(bufCatName,555);
+                mkdir(bufCatName,0555);
 		//i++;
+
 		pid = fork();// exception, sig = SIGCHLD ???
 
 		if(pid==0)
 		{///рекурсия должна быть
 			printf("\nI was a child process:\n");
 
-			if(unshare(CLONE_NEWPID)==-1)
+			if(unshare(CLONE_NEWPID)==-1)//  дает exception fork//
 			{ perror("unshare"); return 0; }
 
 			sleep(1);
@@ -48,6 +48,7 @@ int main(int argc,char* argv[], char** env)
 
 			printf("Mounting procfs at %s\n",bufCatName);
 			sleep(1);
+
 			printf("\npid child %d\n", getpid());
 			i++;
 

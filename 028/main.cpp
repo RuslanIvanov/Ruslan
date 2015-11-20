@@ -39,7 +39,7 @@ int main(int argc,char* argv[], char** env)
 		{///рекурсия должна быть
 			printf("\nI was a child process:\n");
 
-			if(unshare(CLONE_NEWPID)==-1)//  дает exception fork//
+			if(unshare(CLONE_NEWPID| CLONE_SIGHAND)==-1)//  дает exception fork//
 			{ perror("unshare"); return 0; }
 
 			sleep(1);

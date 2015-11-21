@@ -48,16 +48,16 @@ struct ECHO_REQUEST
 // IP Header -- RFC 791
 struct IP_HEADER
 {
-	unsigned char   VIHL;			
-	unsigned char	TOS;			
-	unsigned short	totLen;			
-	unsigned short	id;			
-	unsigned short	flagOff;		
-	unsigned char	TTL;			
-	unsigned char	protocol;		
-	unsigned short	crc;		
+	unsigned char   VIHL;
+	unsigned char	TOS;
+	unsigned short	totLen;
+	unsigned short	id;
+	unsigned short	flagOff;
+	unsigned char	TTL;
+	unsigned char	protocol;
+	unsigned short	crc;
 	struct	in_addr addrSrc;
-	struct	in_addr addrDst;	
+	struct	in_addr addrDst;
 };
 
 struct ECHO_REPLY
@@ -75,21 +75,21 @@ unsigned short crcIcmp(unsigned short *addr, int len)
 	int nleft = len;
 	unsigned short answer;
 	int sum = 0;
-	
-	while( nleft > 1 )  
+
+	while( nleft > 1 )
 	{
 		sum += *addr++;
 		nleft -= 1;
 	}
 
-	sum += (sum >> 16);			
-	answer = ~sum;				
+	sum += (sum >> 16);
+	answer = ~sum;
 	return answer;
 }
 
 unsigned int getTickCount()
 {
-	return 0;
+	return 1;
 }
 
 int main(int argc, char* argv[])
@@ -109,32 +109,36 @@ int main(int argc, char* argv[])
     memset(&addr,0,sizeof(struct sockaddr_in));
     memset(&adrDst,0,sizeof(struct in_addr));
 
+   printf("create sock\n");
     int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if(raw_sock < 0)
     {perror("socket"); return 0;}
 
-    if(inet_pton(AF_INET, argv[1],(void*)&adrDst)<0)
+    if(inet_pton(AF_INET, argv[1],(void*)&adrDst)<=0)
     {perror("Error ip: "); return 0;}
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = /*htonl*/adrDst.s_addr; // адрес хоста 
 
+    printf("setsockopt\n");
+
     int optval = 1;
+    if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
 
-    if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof optval)==-1){perror("setsockopt"); }
-
-   memcpy(&echoReq,0,sizeof(struct ECHO_REQUEST));
+  printf("====");
+   memcpy((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
    echoReq.icmpHeader.type=8;
    echoReq.icmpHeader.code = 0;
    echoReq.icmpHeader.crc = 0;
-   echoReq.icmpHeader.id = getpid();
+   //echoReq.icmpHeader.id = getpid();
    echoReq.icmpHeader.nPack = 1;
 
-   memcpy(&echoRpl,0,sizeof(struct ECHO_REPLY));
-   echoRpl.echoRequest.icmpHeader.type=0;
-   echoRpl.echoRequest.icmpHeader.code = 0;
+   memcpy((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
+   //echoRpl.echoRequest.icmpHeader.type=0;
+   //echoRpl.echoRequest.icmpHeader.code = 0;
 
+    printf("start while...\n");
     int iConnect=1;
     while(bOut==false)
     {
@@ -143,13 +147,13 @@ int main(int argc, char* argv[])
 
 	echoReq.icmpHeader.nPack = iConnect;
 	echoReq.time = getTickCount();
-	memcpy(echoReq.data,0,64);
+	memcpy((void*)echoReq.data,0,64);
 	echoReq.icmpHeader.crc = crcIcmp((unsigned short *)&echoReq,sizeof(struct ECHO_REQUEST));
 
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if(nsend ==-1) {perror("sendto"); break;}
 
-	printf("\n%d bytes from '%s' ", nsend,argv[1]);	
+	printf("\n%d bytes from '%s' ", nsend,argv[1]);
 
 	struct sockaddr_in addr;
 	int nAddrLen = sizeof(struct sockaddr_in);

@@ -34,14 +34,14 @@ struct ICMP_HEADER
 	unsigned char code;
 	unsigned short crc;
 	unsigned short id;
-	unsigned short nPack;
-//	unsigned char nData;
+	unsigned short seq;
 };
 
 struct ECHO_REQUEST
 {
 	ICMP_HEADER icmpHeader;
-	unsigned int time;
+	unsigned int addr;
+	unsigned long long time;
 	char data[64];
 };
 
@@ -62,9 +62,12 @@ struct IP_HEADER
 
 struct ECHO_REPLY
 {
-	IP_HEADER	ipHeader;
-	ECHO_REQUEST	echoRequest;
-	char    cFiller[BUFSIZ];
+	IP_HEADER   ipHeader;
+	ICMP_HEADER icmpHeader;
+	unsigned int addr;
+        unsigned long long time;
+   	unsigned char data[64];
+	unsigned char cFiller[256];
 };
 
 ECHO_REQUEST echoReq;
@@ -89,7 +92,7 @@ unsigned short crcIcmp(unsigned short *addr, int len)
 
 unsigned int getTickCount()
 {
-	return 1;
+	return  clock();
 }
 
 int main(int argc, char* argv[])
@@ -109,7 +112,7 @@ int main(int argc, char* argv[])
     memset(&addr,0,sizeof(struct sockaddr_in));
     memset(&adrDst,0,sizeof(struct in_addr));
 
-   printf("create sock\n");
+    printf("create sock\n");
     int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if(raw_sock < 0)
     {perror("socket"); return 0;}
@@ -119,41 +122,48 @@ int main(int argc, char* argv[])
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = /*htonl*/adrDst.s_addr; // адрес хоста 
+    addr.sin_addr.s_addr = htons(INADDR_ANY);///*htonl*/adrDst.s_addr; // адрес хоста 
 
     printf("setsockopt\n");
 
-    int optval = 1;
-    if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
+   // int optval = 1;
+   // if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
 
-  printf("====");
-   memcpy((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
-   echoReq.icmpHeader.type=8;
-   echoReq.icmpHeader.code = 0;
-   echoReq.icmpHeader.crc = 0;
-   //echoReq.icmpHeader.id = getpid();
-   echoReq.icmpHeader.nPack = 1;
+   if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
+   {perror("bind");return 0;}
 
-   memcpy((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
-   //echoRpl.echoRequest.icmpHeader.type=0;
-   //echoRpl.echoRequest.icmpHeader.code = 0;
+    memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
+    memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-    printf("start while...\n");
+   // struct hostent* phost  = gethostbyname("localhost");
+   // if (phost == NULL) {perror("gethostbyname");}
+  //  printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));
+     
+    
     int iConnect=1;
     while(bOut==false)
     {
-	printf(" while \n");
 	int nSend = sizeof(struct ECHO_REQUEST);
 
-	echoReq.icmpHeader.nPack = iConnect;
+	echoReq.icmpHeader.type=8;
+	echoReq.icmpHeader.code = 0;
+   	echoReq.icmpHeader.crc = 0;
+   	echoReq.icmpHeader.id = getpid();
+   	echoReq.icmpHeader.seq = iConnect;
 	echoReq.time = getTickCount();
-	memcpy((void*)echoReq.data,0,64);
+	echoReq.addr = adrDst.s_addr;
+	memset((void*)echoReq.data,0,64);
 	echoReq.icmpHeader.crc = crcIcmp((unsigned short *)&echoReq,sizeof(struct ECHO_REQUEST));
+
+	memset(&addr,0,sizeof(struct sockaddr_in));
+	addr.sin_family = AF_INET;
+    	addr.sin_port = htons(port);
+   	addr.sin_addr.s_addr = htonl(adrDst.s_addr);
 
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if(nsend ==-1) {perror("sendto"); break;}
 
-	printf("\n%d bytes from '%s' ", nsend,argv[1]);
+	printf("\n%d bytes from  ' localhost ' ", nsend);
 
 	struct sockaddr_in addr;
 	int nAddrLen = sizeof(struct sockaddr_in);
@@ -181,7 +191,7 @@ bool myproto(void* pbuf,int* pn)
 bool myping(void *pbuf,int bytes_read)
 {
 	struct ECHO_REPLY *preply = (struct ECHO_REPLY *)pbuf;
-	if(preply->echoRequest.icmpHeader.type==8)
+	if(preply->icmpHeader.type==0)
 	{
 		char host[16*2]="";
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrSrc),&host[0], 16*2)==NULL)

@@ -32,7 +32,7 @@ bool bOnUsr[2]={true,true};
 struct statCmd
 {
 	unsigned int countOn;
-	unsigned int countOff;	
+	unsigned int countOff;
 };
 
 statCmd sCmd[2];
@@ -127,24 +127,23 @@ int main(int argc, char* argv[])
     }
 
     listen(listener, MAX_CONNECT);
+
+    int nAddrCli=0;
+    sock = accept(listener, (struct sockaddr*)&addrCli, (socklen_t *)&nAddrCli);
+    if(sock < 0)
+    {
+	strerror_r(errno,logMsg, BUFSIZ);
+        syslog(0, logMsg, strlen(logMsg));
+        return 0;
+    }
     
     while(bOut==false)
     {
-        int nAddrCli=0;
-
-        sock = accept(listener, (struct sockaddr*)&addrCli, (socklen_t *)&nAddrCli);
-        if(sock < 0)
-        {
-   		strerror_r(errno,logMsg, BUFSIZ);
-                syslog(0, logMsg, strlen(logMsg));
-               return 0;
-        }
-
-	int bytes_read = recv(sock, buf, BUFSIZ, 0);
+    	int bytes_read = recv(sock, buf, BUFSIZ, 0);
         if(bytes_read <= 0) 
 	{
 		strerror_r(errno,logMsg, BUFSIZ);
-               	syslog(0, logMsg, strlen(logMsg));
+		syslog(0, logMsg, strlen(logMsg));
          
 	}
 	buf[bytes_read] = '\0';
@@ -158,8 +157,18 @@ int main(int argc, char* argv[])
 	if(rez == 3) { bOnUsr[0] = false; }
 	if(rez == 4) { bOnUsr[1] = false; }
 
-        sleep(1);
-       
+	char response[BUFSIZ];
+
+	sprintf(response,"user1 (on = %d, off = %d), user2 (on = %d, off = %d)",sCmd[0].countOn,sCmd[0].countOff,sCmd[1].countOn,sCmd[1].countOff);
+	int len = strlen(response);
+	int  n = sendto(sock, response, len,0,( struct sockaddr *)(&addrCli),sizeof(struct sockaddr));
+        if(n == -1)
+	{
+	    strerror_r(errno,logMsg, BUFSIZ);
+	    syslog(0, logMsg, strlen(logMsg)); 
+	    break; 
+	}
+
    }
 
     shutdown(sock, 2);
@@ -172,7 +181,7 @@ int main(int argc, char* argv[])
 }
 
 int parserRequest(char* str, int n)
-{//0 = error,on1 = 1,on2 = 2,3 - off1, 4 - off2
+{//0 and > 4 is error, user command for SIGUSER1,2: "cmd:1" -  on user1, "cmd:2" - on user2, "cmd:3" - off user1, "cmd:4" - off user2
 	
 	int cmd = 0;
 	char * p = strstr(str,"cmd:");
@@ -184,11 +193,29 @@ int parserRequest(char* str, int n)
        
 		if( cmd>4 || cmd == 0 ) 
 		{
-		sprintf(logMsg,"DEAMON: cmd: error");
-    		syslog(0, logMsg, strlen(logMsg));
-		cmd = 0;
+		    sprintf(logMsg,"DEAMON: cmd: error");
+    		    syslog(0, logMsg, strlen(logMsg));
+		    cmd = 0;
+		}else
+		{
+		    if(cmd==1)
+		    {
+			sCmd[0].countOn++;
+		    }
+		    if(cmd==3)
+		    {
+			sCmd[0].countOff++;
+		    }
+		    if(cmd==2)
+		    {
+			sCmd[1].countOn++;
+		    }
+		    if(cmd==4)
+		    {
+			sCmd[1].countOff++;
+		    }
 		}
-	} 
+	}
 
 	return cmd;
 }

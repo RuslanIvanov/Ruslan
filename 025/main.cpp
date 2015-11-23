@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
     memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
     memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-   /*struct hostent* phost  = gethostbyname("localhost");
+   /*struct hostent* phost  = gethostbyname("localhost"); //для www.google.ru
    if (phost == NULL) {perror("gethostbyname");}
    printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
    
@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
 	memset(&addr,0,sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
     	addr.sin_port = htons(port);
-   	addr.sin_addr.s_addr = htonl(adrDst.s_addr);
+   	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
 
 	int nSend = sizeof(struct ECHO_REQUEST);
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));

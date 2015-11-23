@@ -118,7 +118,15 @@ int main(int argc, char* argv[])
     {perror("socket"); return 0;}
 
     if(inet_pton(AF_INET, argv[1],(void*)&adrDst)<=0)
-    {perror("Error ip: "); return 0;}
+    {
+	perror("Error ip: ");
+
+	struct hostent* phost  = gethostbyname(argv[1]); //для www.google.ru
+   	if (phost == NULL) {perror("gethostbyname");}
+   	printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));
+
+	return 0;
+    }
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);

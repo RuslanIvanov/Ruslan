@@ -189,8 +189,6 @@ int parserRequest(char* str, int n)
 	char * p = strstr(str,"cmd:");
         if(str==p)
         {
-		sprintf(logMsg,"DEAMON: cmd: %s",p+4);
-		syslog(0, logMsg, strlen(logMsg));
 		cmd = atoi(p+4);
 
 		if( cmd>5 || cmd == 0 )
@@ -216,6 +214,10 @@ int parserRequest(char* str, int n)
 		    {
 			sCmd[1].countOff++;
 		    }
+
+		    sprintf(logMsg,"DEAMON: cmd: %d",cmd);
+                    syslog(0, logMsg, strlen(logMsg));
+
 		}
 	}
 

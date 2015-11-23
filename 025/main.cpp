@@ -15,7 +15,7 @@
 #include <vector>
 #include <string>
 #include <map>
-
+#include <netdb.h>
 using namespace std;
 
 #define MAX_CONNECT 100
@@ -40,8 +40,8 @@ struct ICMP_HEADER
 struct ECHO_REQUEST
 {
 	ICMP_HEADER icmpHeader;
-	unsigned int addr;
-	unsigned long long time;
+	///unsigned int addr;
+	//unsigned long long time;
 	char data[64];
 };
 
@@ -64,10 +64,10 @@ struct ECHO_REPLY
 {
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
-	unsigned int addr;
-        unsigned long long time;
-   	unsigned char data[64];
-	unsigned char cFiller[256];
+	//unsigned int addr;
+       // unsigned long long time;
+   	//unsigned char data[64];
+	//unsigned char cFiller[256];
 };
 
 ECHO_REQUEST echoReq;
@@ -135,23 +135,20 @@ int main(int argc, char* argv[])
     memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
     memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-   // struct hostent* phost  = gethostbyname("localhost");
-   // if (phost == NULL) {perror("gethostbyname");}
-  //  printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));
-     
-    
+   /*struct hostent* phost  = gethostbyname("localhost");
+   if (phost == NULL) {perror("gethostbyname");}
+   printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
+   
     int iConnect=1;
     while(bOut==false)
     {
-	int nSend = sizeof(struct ECHO_REQUEST);
-
 	echoReq.icmpHeader.type=8;
 	echoReq.icmpHeader.code = 0;
    	echoReq.icmpHeader.crc = 0;
    	echoReq.icmpHeader.id = getpid();
    	echoReq.icmpHeader.seq = iConnect;
-	echoReq.time = getTickCount();
-	echoReq.addr = adrDst.s_addr;
+	//echoReq.time = getTickCount();
+	//echoReq.addr = adrDst.s_addr;
 	memset((void*)echoReq.data,0,64);
 	echoReq.icmpHeader.crc = crcIcmp((unsigned short *)&echoReq,sizeof(struct ECHO_REQUEST));
 
@@ -160,14 +157,15 @@ int main(int argc, char* argv[])
     	addr.sin_port = htons(port);
    	addr.sin_addr.s_addr = htonl(adrDst.s_addr);
 
+	int nSend = sizeof(struct ECHO_REQUEST);
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if(nsend ==-1) {perror("sendto"); break;}
 
 	printf("\n%d bytes from  ' localhost ' ", nsend);
 
-	struct sockaddr_in addr;
+	struct sockaddr_in addrFrom;
 	int nAddrLen = sizeof(struct sockaddr_in);
-	int bytes_read  = recvfrom(raw_sock, &echoRpl, sizeof(struct ECHO_REPLY), 0,(struct sockaddr*)&addr,(socklen_t*)&nAddrLen);
+	int bytes_read  = recvfrom(raw_sock, &echoRpl, sizeof(struct ECHO_REPLY), 0,(struct sockaddr*)&addrFrom,(socklen_t*)&nAddrLen);
 	if(bytes_read ==-1) {perror("recvfrom"); break;}
 
 	bool bPing = myping(&echoRpl,bytes_read);
@@ -191,12 +189,15 @@ bool myproto(void* pbuf,int* pn)
 bool myping(void *pbuf,int bytes_read)
 {
 	struct ECHO_REPLY *preply = (struct ECHO_REPLY *)pbuf;
-	if(preply->icmpHeader.type==0)
+	if(preply->icmpHeader.type==0 && preply->ipHeader.protocol == IPPROTO_ICMP)
 	{
-		char host[16*2]="";
+		char host[16*2]=""; char hostDst[16*2]="";
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrSrc),&host[0], 16*2)==NULL)
 			perror("Error reply ip");
-		else printf("ttl = %d, host %s",preply->ipHeader.TTL,host);
+		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
+			perror("Error reply ip");
+
+		else printf("ttl = %d,seq %d,host %s send to %s",preply->ipHeader.TTL,preply->icmpHeader.seq,host,hostDst);
 		return true;
 	}else return !true;
 }

@@ -159,7 +159,12 @@ int main(int argc, char* argv[])
 
 	char response[BUFSIZ];
 
-	sprintf(response,"user1 (on = %d, off = %d), user2 (on = %d, off = %d)",sCmd[0].countOn,sCmd[0].countOff,sCmd[1].countOn,sCmd[1].countOff);
+	if(rez==5)
+		sprintf(response,"user1 (on = %d, off = %d), user2 (on = %d, off = %d): SIGUSR1 %d, SIGUSER2 %d",sCmd[0].countOn,sCmd[0].countOff,sCmd[1].countOn,sCmd[1].countOff,countUserSig[0],countUserSig[1]);
+	else if(rez==0)
+	    sprintf(response,"error command");
+	else sprintf(response,"command is success");
+	
 	int len = strlen(response);
 	int  n = sendto(sock, response, len,0,( struct sockaddr *)(&addrCli),sizeof(struct sockaddr));
         if(n == -1)
@@ -181,14 +186,14 @@ int main(int argc, char* argv[])
 }
 
 int parserRequest(char* str, int n)
-{//0 and > 4 is error, user command for SIGUSER1,2: "cmd:1" -  on user1, "cmd:2" - on user2, "cmd:3" - off user1, "cmd:4" - off user2
+{//0 and > 5 is error, user command for SIGUSER1,2: "cmd:1" -  on user1, "cmd:2" - on user2, "cmd:3" - off user1, "cmd:4" - off user2, "cmd:5" - get statistic
 	
 	int cmd = 0;
 	char * p = strstr(str,"cmd:");
         if(str==p) 
         {
 		sprintf(logMsg,"DEAMON: cmd: %s",p+4);
-    		syslog(0, logMsg, strlen(logMsg));
+		syslog(0, logMsg, strlen(logMsg));
 		cmd = atoi(p+4);
        
 		if( cmd>4 || cmd == 0 ) 

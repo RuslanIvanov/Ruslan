@@ -23,9 +23,8 @@ using namespace std;
 void out(int sig=0);
 bool bOut = false;
 int port = 0;
-
+char addrDest[BUFSIZ]="";
 bool myping(void* buf,int bytes_read);
-bool myproto(void*,int *);
 
 // ICMP Header - RFC 792
 struct ICMP_HEADER
@@ -65,7 +64,7 @@ struct ECHO_REPLY
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
 	//unsigned int addr;
-       // unsigned long long time;
+        //unsigned long long time;
    	//unsigned char data[64];
 	//unsigned char cFiller[256];
 };
@@ -95,66 +94,87 @@ unsigned int getTickCount()
 	return  clock();
 }
 
+void delay(int mc)
+{
+    usleep(mc*1000);// suspend execution for microsecond intervals
+}
+
 int main(int argc, char* argv[])
 {
-    signal (SIGTERM, out);
-    signal (SIGINT, out);
+	signal (SIGTERM, out);
+	signal (SIGINT, out);
 
-    if(argc != 2)
-    {
-	printf("\nError: set ip in command string!\n");
-	return 0;
-    }
+	if(argc <= 1)
+	{
+		printf("\nError: set ip in command string!\n");
+		return 0;
+	}
 
-    struct sockaddr_in addr;
-    struct in_addr adrDst;
+	int opt; int timePing=100;
+    	while((opt= getopt(argc, argv, "ht:")) != -1)
+    	switch(opt)
+    	{
+        	case 't': sscanf(optarg,"%d",&timePing); break; 
+                case 'h':
+	        	printf("\nargv:\n");
+        	        printf("\t-t\t time ping mc\n");
+			return 0;
+        }
 
-    memset(&addr,0,sizeof(struct sockaddr_in));
-    memset(&adrDst,0,sizeof(struct in_addr));
+	printf("\ntime period for ping: %d mc\n",timePing);
 
-    printf("create sock\n");
-    int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    if(raw_sock < 0)
-    {perror("socket"); return 0;}
+	strcpy(addrDest,argv[argc-1]);
 
-    if(inet_pton(AF_INET, argv[1],(void*)&adrDst)<=0)
-    {
-	perror("Error ip: ");
+	struct sockaddr_in addr;
+	struct in_addr adrDst;
 
-	struct hostent* phost  = gethostbyname(argv[1]); //для www.google.ru
-   	if (phost == NULL) {perror("gethostbyname");}
-   	printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));
+	memset(&addr,0,sizeof(struct sockaddr_in));
+	memset(&adrDst,0,sizeof(struct in_addr));
 
-	return 0;
-    }
+	printf("create sock\n");
+	int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htons(INADDR_ANY);///*htonl*/adrDst.s_addr; // адрес хоста 
+	if(raw_sock < 0)
+	{perror("socket"); return 0;}
 
-    printf("setsockopt\n");
+	if(inet_pton(AF_INET, addrDest,(void*)&adrDst)<=0)
+	{
+		perror("Error ip: ");
 
-   // int optval = 1;
-   // if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
+		struct hostent* phost  = gethostbyname(addrDest); //для www.google.ru
+		if (phost == NULL) {perror("gethostbyname"); printf("\nError in destination address!\n"); return 0;}
 
-   if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
-   {perror("bind");return 0;}
+		printf("Destination IP address : %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));
+		adrDst = *(struct in_addr*)phost->h_addr;
+	}
 
-    memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
-    memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = htons(INADDR_ANY);///*htonl*/adrDst.s_addr; // адрес хоста 
 
-   /*struct hostent* phost  = gethostbyname("localhost"); //для www.google.ru
-   if (phost == NULL) {perror("gethostbyname");}
-   printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
-   
-    int iConnect=1;
-    while(bOut==false)
-    {
+	printf("setsockopt\n");
+
+	// int optval = 1;
+	// if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
+
+	if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
+	{perror("bind");return 0;}
+
+	memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
+	memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
+
+	/*struct hostent* phost  = gethostbyname("localhost");// как узнать свой ip?
+	if (phost == NULL) {perror("gethostbyname");}
+	printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
+
+	int iConnect=1;
+	while(bOut==false)
+	{
 	echoReq.icmpHeader.type=8;
 	echoReq.icmpHeader.code = 0;
-   	echoReq.icmpHeader.crc = 0;
-   	echoReq.icmpHeader.id = getpid();
-   	echoReq.icmpHeader.seq = iConnect;
+	echoReq.icmpHeader.crc = 0;
+	echoReq.icmpHeader.id = getpid();
+	echoReq.icmpHeader.seq = iConnect;
 	//echoReq.time = getTickCount();
 	//echoReq.addr = adrDst.s_addr;
 	memset((void*)echoReq.data,0,64);
@@ -162,14 +182,15 @@ int main(int argc, char* argv[])
 
 	memset(&addr,0,sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
-    	addr.sin_port = htons(port);
-   	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
 
 	int nSend = sizeof(struct ECHO_REQUEST);
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if(nsend ==-1) {perror("sendto"); break;}
 
-	printf("\n%d bytes from  ' localhost ' ", nsend);
+	//printf("\n%d bytes from  ' %s ' ", nsend,inet_ntoa(adrDst));
+	printf("%d bytes from  host ", nsend);
 
 	struct sockaddr_in addrFrom;
 	int nAddrLen = sizeof(struct sockaddr_in);
@@ -181,17 +202,13 @@ int main(int argc, char* argv[])
 	else printf(" Destination Host Unreachable");
 	printf("\n");
 	iConnect++;
-    }
+	delay(timePing);
+	}
 
-   close(raw_sock);
+	close(raw_sock);
 
-   printf("\nExit...\n");
-   return 0;
-}
-
-bool myproto(void* pbuf,int* pn)
-{
-	return true;
+	printf("\nExit...\n");
+	return 0;
 }
 
 bool myping(void *pbuf,int bytes_read)
@@ -205,7 +222,7 @@ bool myping(void *pbuf,int bytes_read)
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
 			perror("Error reply ip");
 
-		else printf("ttl = %d,seq %d,host %s send to %s",preply->ipHeader.TTL,preply->icmpHeader.seq,host,hostDst);
+		else printf("ttl = %d,seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->icmpHeader.seq,host,hostDst);
 		return true;
 	}else return !true;
 }

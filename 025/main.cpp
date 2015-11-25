@@ -26,6 +26,9 @@ int port = 0;
 char addrDest[BUFSIZ]="";
 bool myping(void* buf,int bytes_read);
 
+double dtime;
+double timeSend;
+
 // ICMP Header - RFC 792
 struct ICMP_HEADER
 {
@@ -39,8 +42,7 @@ struct ICMP_HEADER
 struct ECHO_REQUEST
 {
 	ICMP_HEADER icmpHeader;
-	///unsigned int addr;
-	//unsigned long long time;
+	unsigned long long time;
 	char data[64];
 };
 
@@ -63,10 +65,7 @@ struct ECHO_REPLY
 {
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
-	//unsigned int addr;
-        //unsigned long long time;
-   	//unsigned char data[64];
-	//unsigned char cFiller[256];
+        unsigned long long time;
 };
 
 ECHO_REQUEST echoReq;
@@ -106,11 +105,11 @@ int main(int argc, char* argv[])
 
 	if(argc <= 1)
 	{
-		printf("\nError: set ip in command string!\n");
+		printf("\nError: set ip in command string! Help: ./main -h\n");
 		return 0;
 	}
 
-	int opt; int timePing=100;
+	int opt; int timePing=1000;
     	while((opt= getopt(argc, argv, "ht:")) != -1)
     	switch(opt)
     	{
@@ -150,7 +149,7 @@ int main(int argc, char* argv[])
 
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = htons(INADDR_ANY);///*htonl*/adrDst.s_addr; // адрес хоста 
+	addr.sin_addr.s_addr = htons(INADDR_ANY);//adrDst.s_addr; // адрес хоста 
 
 	printf("setsockopt\n");
 
@@ -163,7 +162,7 @@ int main(int argc, char* argv[])
 	memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
 	memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-	/*struct hostent* phost  = gethostbyname("localhost");// как узнать свой ip?
+	/*struct hostent* phost  = gethostbyname("localhost");
 	if (phost == NULL) {perror("gethostbyname");}
 	printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
 
@@ -175,8 +174,8 @@ int main(int argc, char* argv[])
 	echoReq.icmpHeader.crc = 0;
 	echoReq.icmpHeader.id = getpid();
 	echoReq.icmpHeader.seq = iConnect;
-	//echoReq.time = getTickCount();
-	//echoReq.addr = adrDst.s_addr;
+	echoReq.time = getTickCount();
+
 	memset((void*)echoReq.data,0,64);
 	echoReq.icmpHeader.crc = crcIcmp((unsigned short *)&echoReq,sizeof(struct ECHO_REQUEST));
 
@@ -189,7 +188,6 @@ int main(int argc, char* argv[])
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if(nsend ==-1) {perror("sendto"); break;}
 
-	//printf("\n%d bytes from  ' %s ' ", nsend,inet_ntoa(adrDst));
 	printf("%d bytes from  host ", nsend);
 
 	struct sockaddr_in addrFrom;
@@ -222,7 +220,7 @@ bool myping(void *pbuf,int bytes_read)
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
 			perror("Error reply ip");
 
-		else printf("ttl = %d,seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->icmpHeader.seq,host,hostDst);
+		else printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,(getTickCount()-preply->time),preply->icmpHeader.seq,host,hostDst);
 		return true;
 	}else return !true;
 }

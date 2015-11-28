@@ -18,16 +18,20 @@
 #include <netdb.h>
 using namespace std;
 
-#define MAX_CONNECT 100
+#define TYPE0  0
+#define TYPE8  8
+
+#define TYPE11  11
+#define TYPE13  13
+#define TYPE14  14
+
+#define LENDATA 64
 
 void out(int sig=0);
 bool bOut = false;
 int port = 0;
 char addrDest[BUFSIZ]="";
-bool myping(void* buf,int bytes_read);
-
-double dtime;
-double timeSend;
+bool mytrecerout(void* buf,int bytes_read);
 
 // ICMP Header - RFC 792
 struct ICMP_HEADER
@@ -37,13 +41,6 @@ struct ICMP_HEADER
 	unsigned short crc;
 	unsigned short id;
 	unsigned short seq;
-};
-
-struct ECHO_REQUEST
-{
-	ICMP_HEADER icmpHeader;
-	unsigned long long time;
-	char data[64];
 };
 
 // IP Header -- RFC 791
@@ -57,7 +54,7 @@ struct IP_HEADER
 	unsigned char	TTL;
 	unsigned char	protocol;
 	unsigned short	crc;
-	struct	in_addr addrSrc;
+	struct	in_addr addrSrc; /*struct in_addr {unsigned long s_addr;};*/
 	struct	in_addr addrDst;
 };
 
@@ -65,11 +62,37 @@ struct ECHO_REPLY
 {
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
-        unsigned long long time;
+        /*unsigned int current_time;
+	unsigned int in_time;
+	unsigned int out_time;*/
+	unsigned long long time;
+	unsigned char data[LENDATA];
+};
+
+struct ECHO_REQUEST
+{
+	IP_HEADER   ipHeader;
+	ICMP_HEADER icmpHeader;
+	/*unsigned int current_time;
+	unsigned int in_time;
+	unsigned int out_time;*/
+	unsigned long long time;
+	unsigned char data[LENDATA];
+};
+
+struct  TRACE_INFO
+{
+        int packetid;
+        int ttl;
+        int proto;
+        int size;
+        unsigned long saddr;
+        unsigned long daddr;
 };
 
 ECHO_REQUEST echoReq;
 ECHO_REPLY  echoRpl;
+TRACE_INFO trace;
 
 unsigned short crcIcmp(unsigned short *addr, int len)
 {
@@ -147,14 +170,15 @@ int main(int argc, char* argv[])
 		adrDst = *(struct in_addr*)phost->h_addr;
 	}
 
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = htons(INADDR_ANY);//adrDst.s_addr; // адрес хоста 
+	//addr.sin_family = AF_INET;
+	//addr.sin_port = htons(port);
+	//addr.sin_addr.s_addr = htons(INADDR_ANY);//adrDst.s_addr; // адрес хоста 
 
 	printf("setsockopt\n");
 
-	// int optval = 1;
-	// if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
+	// provide our own IP header and not let the kernel provide one:
+	int optval = 1;
+	if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){perror("setsockopt"); }
 
 	if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
 	{perror("bind");return 0;}
@@ -162,27 +186,48 @@ int main(int argc, char* argv[])
 	memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
 	memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-	/*struct hostent* phost  = gethostbyname("localhost");
-	if (phost == NULL) {perror("gethostbyname");}
-	printf("IP address: %s\n", inet_ntoa(*(struct in_addr*)phost->h_addr));*/
+	char hostname[BUFSIZ];
+	if (gethostname(hostname, sizeof(hostname)) == -1) 
+  	{
+     		perror("gethostname");
+         	return 0;
+  	}
+
+	struct hostent* plocalhost  = gethostbyname(hostname);
+	if (plocalhost == NULL) {perror("gethostbyname");}
+	printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);//*/
+
+	echoReq.ipHeader.VIHL=4<<4|(0x0f&5); //Ver 0-4, HLEN 4-8
+	echoReq.ipHeader.TOS=0;
+	echoReq.ipHeader.totLen = htons(sizeof(struct ECHO_REQUEST));
+	echoReq.ipHeader.id = getpid();
+	echoReq.ipHeader.flagOff=0;
+	echoReq.ipHeader.TTL=6;
+	echoReq.ipHeader.protocol = IPPROTO_ICMP;
+	echoReq.ipHeader.crc=0;//ядро заполнит
+
+	echoReq.ipHeader.addrSrc.s_addr = 0;//*(struct in_addr*)plocalhost->h_addr; //назначить ip 
+	echoReq.ipHeader.addrDst.s_addr = adrDst.s_addr;
 
 	int iConnect=1;
 	while(bOut==false)
 	{
-	echoReq.icmpHeader.type=8;
+	echoReq.icmpHeader.type= TYPE8;//TYPE13;
 	echoReq.icmpHeader.code = 0;
 	echoReq.icmpHeader.crc = 0;
 	echoReq.icmpHeader.id = getpid();
 	echoReq.icmpHeader.seq = iConnect;
 	echoReq.time = getTickCount();
+	//echoReq.in_time = 0;
+	//echoReq.out_time = getTickCount();
 
-	memset((void*)echoReq.data,0,64);
+	memset((void*)echoReq.data,0,LENDATA);
 	echoReq.icmpHeader.crc = crcIcmp((unsigned short *)&echoReq,sizeof(struct ECHO_REQUEST));
 
 	memset(&addr,0,sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = /*htonl*/(adrDst.s_addr);
+	addr.sin_addr.s_addr =adrDst.s_addr;
 
 	int nSend = sizeof(struct ECHO_REQUEST);
 	ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
@@ -195,9 +240,9 @@ int main(int argc, char* argv[])
 	int bytes_read  = recvfrom(raw_sock, &echoRpl, sizeof(struct ECHO_REPLY), 0,(struct sockaddr*)&addrFrom,(socklen_t*)&nAddrLen);
 	if(bytes_read ==-1) {perror("recvfrom"); break;}
 
-	bool bPing = myping(&echoRpl,bytes_read);
-	if(bPing){printf(" ping is OK!");}
-	else printf(" Destination Host Unreachable");
+	bool bTrace = mytrecerout(&echoRpl,bytes_read);
+	if(bTrace){printf(" trace is OK!");}
+	else printf(" time exceeded in transit");
 	printf("\n");
 	iConnect++;
 	delay(timePing);
@@ -209,10 +254,13 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-bool myping(void *pbuf,int bytes_read)
+bool mytrecerout(void *pbuf,int bytes_read)
 {
 	struct ECHO_REPLY *preply = (struct ECHO_REPLY *)pbuf;
-	if(preply->icmpHeader.type==0 && preply->ipHeader.protocol == IPPROTO_ICMP)
+
+	if( preply->ipHeader.protocol != IPPROTO_ICMP ) return  false;
+
+	if(preply->icmpHeader.type == TYPE14 || preply->icmpHeader.type == TYPE0)
 	{
 		char host[16*2]=""; char hostDst[16*2]="";
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrSrc),&host[0], 16*2)==NULL)
@@ -220,9 +268,12 @@ bool myping(void *pbuf,int bytes_read)
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
 			perror("Error reply ip");
 
-		else printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,(getTickCount()-preply->time),preply->icmpHeader.seq,host,hostDst);
+		else printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
 		return true;
-	}else return !true;
+	}else if(preply->icmpHeader.type == TYPE11)
+		{
+			printf(" время (ttl) истекло");
+		}else return false;
 }
 
 void out(int sig)

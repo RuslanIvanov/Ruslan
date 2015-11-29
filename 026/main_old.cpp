@@ -19,7 +19,6 @@
 using namespace std;
 
 #define TYPE0  0
-#define TYPE3  3
 #define TYPE8  8
 
 #define TYPE11  11
@@ -32,9 +31,8 @@ void out(int sig=0);
 bool bOut = false;
 int port = 0;
 char addrDest[BUFSIZ]="";
-int mytrecerout(void* buf,int bytes_read);
+bool mytrecerout(void* buf,int bytes_read);
 char hostIp[16*2]="";
-int memTTL;
 
 // ICMP Header - RFC 792
 struct ICMP_HEADER
@@ -65,7 +63,9 @@ struct ECHO_REPLY
 {
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
-  
+        /*unsigned int current_time;
+	unsigned int in_time;
+	unsigned int out_time;*/
 	unsigned long long time;
 	unsigned char data[LENDATA];
 };
@@ -74,7 +74,9 @@ struct ECHO_REQUEST
 {
 	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
-	
+	/*unsigned int current_time;
+	unsigned int in_time;
+	unsigned int out_time;*/
 	unsigned long long time;
 	unsigned char data[LENDATA];
 };
@@ -190,19 +192,21 @@ int main(int argc, char* argv[])
 
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = htons(INADDR_ANY);
 
 	if(strcmp(hostIp,"")==0)
 	{
-		//addr.sin_addr.s_addr = adrHost.s_addr;// адрес хоста
+		addr.sin_addr.s_addr = adrHost.s_addr;// адрес хоста
 		char hostname[BUFSIZ];//назначить ip 
 		if (gethostname(hostname, sizeof(hostname)) == -1) 
   		{perror("gethostname");return 0;}
 
 		struct hostent* plocalhost  = gethostbyname(hostname);
 		if (plocalhost == NULL) {perror("gethostbyname");}
-		printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);
-	}//else addr.sin_addr = adrDst;
+		printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);//*/
+	}
+
+	printf(" addr host %ld",adrHost.s_addr);
+	printf("setsockopt\n");
 
 	// provide our own IP header and not let the kernel provide one:
 	int optval = 1;
@@ -219,7 +223,7 @@ int main(int argc, char* argv[])
 	echoReq.ipHeader.totLen = htons(sizeof(struct ECHO_REQUEST));
 	echoReq.ipHeader.id = getpid();
 	echoReq.ipHeader.flagOff=0;
-	echoReq.ipHeader.TTL= memTTL = 1;
+	echoReq.ipHeader.TTL=1;
 	echoReq.ipHeader.protocol = IPPROTO_ICMP;
 	echoReq.ipHeader.crc=0;//ядро заполнит
 
@@ -255,21 +259,9 @@ int main(int argc, char* argv[])
 		int bytes_read  = recvfrom(raw_sock, &echoRpl, sizeof(struct ECHO_REPLY), 0,(struct sockaddr*)&addrFrom,(socklen_t*)&nAddrLen);
 		if(bytes_read ==-1) {perror("recvfrom"); break;}
 
-		int  stateTrace = mytrecerout(&echoRpl,bytes_read);
-		if(stateTrace==0)
-		{
-			printf(" trace is OK!");
-		}else
-		if(stateTrace==3)
-		{
-			printf(" trace NO GOOD!");
-		}
-		else
-		if(stateTrace==11)
-		{ 
-			echoReq.ipHeader.TTL+=1;
-			printf(" add TTL+1");
-		}else printf("error trace");
+		bool bTrace = mytrecerout(&echoRpl,bytes_read);
+		if(bTrace){printf(" trace is OK!");}
+		else printf(" time exceeded in transit");
 		printf("\n");
 		iConnect++;
 		delay(timePing);
@@ -281,14 +273,14 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-int mytrecerout(void *pbuf,int bytes_read)
-{//-1  error, 0 -good, else 'code'
+bool mytrecerout(void *pbuf,int bytes_read)
+{
 	struct ECHO_REPLY *preply = (struct ECHO_REPLY *)pbuf;
 
-	if( preply->ipHeader.protocol != IPPROTO_ICMP ) return  -1;
+	if( preply->ipHeader.protocol != IPPROTO_ICMP ) return  false;
 
-	if(preply->icmpHeader.type == TYPE0)
-	{//ответы
+	if(preply->icmpHeader.type == TYPE14 || preply->icmpHeader.type == TYPE0)
+	{
 		char host[16*2]=""; char hostDst[16*2]="";
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrSrc),&host[0], 16*2)==NULL)
 			perror("Error reply ip");
@@ -296,21 +288,11 @@ int mytrecerout(void *pbuf,int bytes_read)
 			perror("Error reply ip");
 
 		else printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
-		return 0;
-	}
-	if(preply->icmpHeader.type == TYPE11)
-	{
-		printf(" time exceeded in transit: code %d",preply->icmpHeader.code);
-		if(preply->icmpHeader.code==0)
-			return 11;
-	}
-	if(preply->icmpHeader.type == TYPE3) 
-	{
-		printf("Destination address: code %d ()",preply->icmpHeader.code);
-		return 3;
-	}
-	
-	return -1;
+		return true;
+	}else if(preply->icmpHeader.type == TYPE11)
+		{
+			printf(" время (ttl) истекло");
+		}else return false;
 }
 
 void out(int sig)

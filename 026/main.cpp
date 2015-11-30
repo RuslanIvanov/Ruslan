@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
 		printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);
 	}
 
-	printf("\nip host %ld",addr.sin_addr.s_addr);
+	printf("\nip host %d",addr.sin_addr.s_addr);
 
 	// provide our own IP header and not let the kernel provide one:
 	//int optval = 1;
@@ -247,11 +247,18 @@ int main(int argc, char* argv[])
 		if(bytes_read ==-1) {perror("recvfrom"); break;}
 
 		int  stateTrace = mytrecerout(&echoRpl,bytes_read);
-		if(stateTrace==0)
-		{	
+		
+		if(stateTrace==11)
+		{
 			 memTTL+=1;
 			 if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        		 {perror("setsockopt:set TTL");return 0;}		
+        		 {perror("setsockopt:set TTL");return 0;}	
+		}else
+		if(stateTrace==0||stateTrace==11)
+		{	
+			/* memTTL+=1;
+			 if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
+        		 {perror("setsockopt:set TTL");return 0;}		*/
 
 			char szHostName [NI_MAXHOST];
 
@@ -298,7 +305,7 @@ int mytrecerout(void *pbuf,int bytes_read)
 	{
 		printf(" time exceeded in transit: code %d",preply->icmpHeader.code);
 		if(preply->icmpHeader.code==0)
-			return -1;
+			return 11;
 	}
 
 	if(preply->icmpHeader.type == TYPE3) 

@@ -19,9 +19,12 @@
 using namespace std;
 
 #define TYPE0  0
-#define TYPE8  8
 #define TYPE3  3
+#define TYPE8  8
+
 #define TYPE11  11
+#define TYPE13  13
+#define TYPE14  14
 
 #define LENDATA 64
 
@@ -31,7 +34,7 @@ int port = 0;
 char addrDest[BUFSIZ]="";
 int mytrecerout(void* buf,int bytes_read);
 char hostIp[16*2]="";
-int memTTL=1;
+int memTTL;
 
 // ICMP Header - RFC 792
 struct ICMP_HEADER
@@ -69,14 +72,26 @@ struct ECHO_REPLY
 
 struct ECHO_REQUEST
 {
+	IP_HEADER   ipHeader;
 	ICMP_HEADER icmpHeader;
 	
 	unsigned long long time;
 	unsigned char data[LENDATA];
 };
 
+struct  TRACE_INFO
+{
+        int packetid;
+        int ttl;
+        int proto;
+        int size;
+        unsigned long saddr;
+        unsigned long daddr;
+};
+
 ECHO_REQUEST echoReq;
 ECHO_REPLY  echoRpl;
+TRACE_INFO trace;
 
 unsigned short crcIcmp(unsigned short *addr, int len)
 {
@@ -187,13 +202,13 @@ int main(int argc, char* argv[])
 		struct hostent* plocalhost  = gethostbyname(hostname);
 		if (plocalhost == NULL) {perror("gethostbyname");}
 		printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);
-	}
+	}//else addr.sin_addr = adrDst;
 
 	printf("\nip host %ld",addr.sin_addr.s_addr);
 
 	// provide our own IP header and not let the kernel provide one:
-	//int optval = 1;
-	//if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){ perror("setsockopt"); }
+	int optval = 1;
+	if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){ perror("setsockopt"); }
 
 	if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
 	{perror("bind");return 0;}
@@ -201,7 +216,7 @@ int main(int argc, char* argv[])
 	memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
 	memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-/*	echoReq.ipHeader.VIHL=4<<4|(0x0f&5); //Ver 0-4, HLEN 4-8
+	echoReq.ipHeader.VIHL=4<<4|(0x0f&5); //Ver 0-4, HLEN 4-8
 	echoReq.ipHeader.TOS=0;
 	echoReq.ipHeader.totLen = htons(sizeof(struct ECHO_REQUEST));
 	echoReq.ipHeader.id = getpid();
@@ -211,16 +226,12 @@ int main(int argc, char* argv[])
 	echoReq.ipHeader.crc=0;//ядро заполнит
 
 	echoReq.ipHeader.addrSrc.s_addr = adrHost.s_addr;
-	echoReq.ipHeader.addrDst.s_addr = adrDst.s_addr;*/
-
-	//Set the TTL value for the message
-        if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        {perror("setsockopt:set TTL");return 0;}
+	echoReq.ipHeader.addrDst.s_addr = adrDst.s_addr;
 
 	int iConnect=1;
 	while(bOut==false)
 	{
-		echoReq.icmpHeader.type= TYPE8;
+		echoReq.icmpHeader.type= TYPE8;//TYPE13;
 		echoReq.icmpHeader.code = 0;
 		echoReq.icmpHeader.crc = 0;
 		echoReq.icmpHeader.id = getpid();
@@ -248,20 +259,19 @@ int main(int argc, char* argv[])
 
 		int  stateTrace = mytrecerout(&echoRpl,bytes_read);
 		if(stateTrace==0)
-		{	
-			 memTTL+=1;
-			 if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        		 {perror("setsockopt:set TTL");return 0;}		
-
-			char szHostName [NI_MAXHOST];
-
-                        if (getnameinfo((struct sockaddr*)&addrFrom,nAddrLen,szHostName,NI_MAXHOST,NULL,0,NI_NUMERICSERV) == -1)
-                        {perror("getnameinfo");return 0;}	
-                        
-			printf(" [remote host %s] trace is OK!",szHostName);
-
-		}else printf(" error trace!");
-
+		{
+			printf(" trace is OK!");
+		}else
+		if(stateTrace==3)
+		{
+			printf(" trace NO GOOD!");
+		}
+		else
+		if(stateTrace==11)
+		{ 
+			echoReq.ipHeader.TTL+=1;
+			printf(" add TTL+1");
+		}else printf("error trace");
 		printf("\n");
 		iConnect++;
 		delay(timePing);
@@ -274,10 +284,10 @@ int main(int argc, char* argv[])
 }
 
 int mytrecerout(void *pbuf,int bytes_read)
-{//-1  error, 0 - good
+{//-1  error, 0 -good, else 'code'
 	struct ECHO_REPLY *preply = (struct ECHO_REPLY *)pbuf;
 
-	if( preply->ipHeader.protocol != IPPROTO_ICMP ) { printf(" error protocol!"); return -1;}
+	if( preply->ipHeader.protocol != IPPROTO_ICMP ) return  -1;
 
 	if(preply->icmpHeader.type == TYPE0)
 	{//ответы
@@ -287,24 +297,19 @@ int mytrecerout(void *pbuf,int bytes_read)
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
 			perror("Error reply ip");
 
-		else {
-				printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
-		
-		     }
+		else printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
 		return 0;
 	}
-
 	if(preply->icmpHeader.type == TYPE11)
 	{
 		printf(" time exceeded in transit: code %d",preply->icmpHeader.code);
 		if(preply->icmpHeader.code==0)
-			return -1;
+			return 11;
 	}
-
 	if(preply->icmpHeader.type == TYPE3) 
 	{
-		printf(" destination unreachable: code %d",preply->icmpHeader.code);
-		return -1;
+		printf("Destination address: code %d ()",preply->icmpHeader.code);
+		return 3;
 	}
 	
 	return -1;

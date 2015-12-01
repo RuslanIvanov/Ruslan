@@ -30,8 +30,9 @@ bool bOut = false;
 int port = 0;
 char addrDest[BUFSIZ]="";
 int mytrecerout(void* buf,int bytes_read);
-char hostIp[16*2]="";
+//char hostIp[16*2]="";
 int memTTL=1;
+int nRetryReg=3;
 
 // ICMP Header - RFC 792
 struct ICMP_HEADER
@@ -117,19 +118,20 @@ int main(int argc, char* argv[])
 	}
 
 	int opt; int timePing=1000;
-    	while((opt= getopt(argc, argv, "ht:l:")) != -1)
+    	while((opt= getopt(argc, argv, "ht:r:")) != -1)
     	switch(opt)
     	{
         	case 't': sscanf(optarg,"%d",&timePing); break;
-		case 'l': strcpy(hostIp,""); sscanf(optarg,"%s",hostIp); break; 
+		case 'r': sscanf(optarg,"%d",&nRetryReg); break;
                 case 'h':
 	        	printf("\nargv:\n");
         	        printf("\t-t\t time ping mc\n");
-			printf("\t-l\t host ip address\n");
+			printf("\t-r\t retry send\n");
+			
 			return 0;
         }
 
-	printf("\ntime period for ping: %d mc, host ip %s\n",timePing, hostIp);
+	printf("\ntime period for ping: %d mc, retry send %d\n",timePing, nRetryReg);
 
 	strcpy(addrDest,argv[argc-1]);
 
@@ -144,11 +146,9 @@ int main(int argc, char* argv[])
 	};*/	
 
 	struct in_addr adrDst; /*struct in_addr {unsigned long s_addr;};*/
-	struct in_addr adrHost;
 
 	memset(&addr,0,sizeof(struct sockaddr_in));
 	memset(&adrDst,0,sizeof(struct in_addr));
-	memset(&adrHost,0,sizeof(struct in_addr));
 
 	printf("create sock\n");
 	int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -167,33 +167,9 @@ int main(int argc, char* argv[])
 		adrDst = *(struct in_addr*)phost->h_addr;
 	}
 
-	if(inet_pton(AF_INET, hostIp,(void*)&adrHost)<=0)
-	{
-		perror("Error host ip: ");
-		strcpy(hostIp,"");
-	}
-
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = htons(INADDR_ANY);
-
-	if(strcmp(hostIp,"")==0)
-	{
-		//получить адрес хоста
-		char hostname[BUFSIZ];
-		if (gethostname(hostname, sizeof(hostname)) == -1) 
-  		{perror("gethostname");return 0;}
-
-		struct hostent* plocalhost  = gethostbyname(hostname);
-		if (plocalhost == NULL) {perror("gethostbyname");}
-		printf("IP address: %s, hostname %s\n", inet_ntoa(*(struct in_addr*)plocalhost->h_addr), hostname);
-	}
-
-	printf("\nip host %d",addr.sin_addr.s_addr);
-
-	// provide our own IP header and not let the kernel provide one:
-	//int optval = 1;
-	//if(setsockopt(raw_sock,IPPROTO_IP, IP_HDRINCL, &optval, sizeof(optval))==-1){ perror("setsockopt"); }
 
 	if(bind(raw_sock, (struct sockaddr *)&addr, sizeof(addr)) != 0)
 	{perror("bind");return 0;}
@@ -201,21 +177,9 @@ int main(int argc, char* argv[])
 	memset((void*)&echoReq,0,sizeof(struct ECHO_REQUEST));
 	memset((void*)&echoRpl,0,sizeof(struct ECHO_REPLY));
 
-/*	echoReq.ipHeader.VIHL=4<<4|(0x0f&5); //Ver 0-4, HLEN 4-8
-	echoReq.ipHeader.TOS=0;
-	echoReq.ipHeader.totLen = htons(sizeof(struct ECHO_REQUEST));
-	echoReq.ipHeader.id = getpid();
-	echoReq.ipHeader.flagOff=0;
-	echoReq.ipHeader.TTL= memTTL = 1;
-	echoReq.ipHeader.protocol = IPPROTO_ICMP;
-	echoReq.ipHeader.crc=0;//ядро заполнит
-
-	echoReq.ipHeader.addrSrc.s_addr = adrHost.s_addr;
-	echoReq.ipHeader.addrDst.s_addr = adrDst.s_addr;*/
-
 	//Set the TTL value for the message
         if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        {perror("setsockopt:set TTL");return 0;}
+        { perror("setsockopt:set TTL");return 0; }
 
 	int iConnect=1;
 	while(bOut==false)
@@ -235,11 +199,14 @@ int main(int argc, char* argv[])
 		addr.sin_port = htons(port);
 		addr.sin_addr.s_addr =adrDst.s_addr;
 
-		int nSend = sizeof(struct ECHO_REQUEST);
-		ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
-		if(nsend ==-1) {perror("sendto"); break;}
+		printf("send msg icmp [count %d] from host %s",nRetryReg,addrDest);
+		for(int retry=0;retry<nRetryReg;retry++)
+		{
+			int nSend = sizeof(struct ECHO_REQUEST);
+			ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+			if(nsend ==-1) {perror("sendto"); break;}
+		}
 
-		printf("%d bytes from  host ", nsend);
 
 		struct sockaddr_in addrFrom;
 		int nAddrLen = sizeof(struct sockaddr_in);
@@ -250,16 +217,21 @@ int main(int argc, char* argv[])
 		
 		if(stateTrace==11)
 		{
-			 memTTL+=1;
-			 if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        		 {perror("setsockopt:set TTL");return 0;}	
-		}else
-		if(stateTrace==0||stateTrace==11)
-		{	
-			/* memTTL+=1;
-			 if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
-        		 {perror("setsockopt:set TTL");return 0;}		*/
+			memTTL+=1;
+			if (setsockopt (raw_sock, IPPROTO_IP, IP_TTL, (char *)&memTTL, sizeof (memTTL)) == -1)
+        		{perror("setsockopt:set TTL");return 0;}
+			
+			char szHostName [NI_MAXHOST];
 
+                        if (getnameinfo((struct sockaddr*)&addrFrom,nAddrLen,szHostName,NI_MAXHOST,NULL,0,NI_NUMERICSERV) == -1)
+                        {perror("getnameinfo");return 0;}	
+                        
+			printf(" [remote host %s]",szHostName);
+
+			 
+		}else
+		if(stateTrace==0)
+		{	
 			char szHostName [NI_MAXHOST];
 
                         if (getnameinfo((struct sockaddr*)&addrFrom,nAddrLen,szHostName,NI_MAXHOST,NULL,0,NI_NUMERICSERV) == -1)
@@ -267,7 +239,10 @@ int main(int argc, char* argv[])
                         
 			printf(" [remote host %s] trace is OK!",szHostName);
 
+			break;
 		}else printf(" error trace!");
+
+		printf(" set TTL %d",memTTL);	
 
 		printf("\n");
 		iConnect++;
@@ -290,13 +265,11 @@ int mytrecerout(void *pbuf,int bytes_read)
 	{//ответы
 		char host[16*2]=""; char hostDst[16*2]="";
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrSrc),&host[0], 16*2)==NULL)
-			perror("Error reply ip");
+		{ perror("Error reply source ip"); return -1; }
 		if(inet_ntop(AF_INET, &(preply->ipHeader.addrDst),&hostDst[0], 16*2)==NULL)
-			perror("Error reply ip");
-
+		{ perror("Error reply dest ip"); return -1; }
 		else {
-				printf("ttl = %d,  RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
-		
+			printf(" ttl = %d, RTT = %Ld, seq %d,remote host %s send to %s",preply->ipHeader.TTL,preply->time,preply->icmpHeader.seq,host,hostDst);
 		     }
 		return 0;
 	}

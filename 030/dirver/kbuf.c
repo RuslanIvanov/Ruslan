@@ -67,6 +67,7 @@ static  int chkbuf_init(void)
     if(rez!=0) 
     {
 	printk(KERN_ALERT"Error register_chdev_region for %s:",name);
+	unregister_chrdev_region(first_node, COUNT_DEVICES);
 	return rez;
     }
     

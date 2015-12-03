@@ -30,7 +30,7 @@ bool bOut = false;
 int port = 0;
 char addrDest[BUFSIZ]="";
 int mytrecerout(void* buf,int bytes_read);
-//char hostIp[16*2]="";
+int raw_sock;
 int memTTL=1;
 int nRetryReg=3;
 
@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 	memset(&adrDst,0,sizeof(struct in_addr));
 
 	printf("create sock\n");
-	int raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+	raw_sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
 	if(raw_sock < 0)
 	{perror("socket"); return 0;}
@@ -295,6 +295,8 @@ void out(int sig)
     if( sig==SIGTERM || sig == SIGINT )
     {
 	printf("\nGoodbye 'ping'\n");
+	if(raw_sock!=0)
+		shutdown(raw_sock,SHUT_RD);
 	bOut=true;
     }
 }

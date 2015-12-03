@@ -30,7 +30,7 @@ bool bOut = false;
 int port = 0;
 char addrDest[BUFSIZ]="";
 int mytrecerout(void* buf,int bytes_read);
-struct pollfd fds;//[2];
+struct pollfd fds;
 int memTTL=1;
 int nRetryReg=3;
 
@@ -211,11 +211,13 @@ int main(int argc, char* argv[])
 			int nSend = sizeof(struct ECHO_REQUEST);
 			ssize_t nsend = sendto(raw_sock, &echoReq, nSend, MSG_DONTWAIT,(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 			if(nsend ==-1) {perror("sendto"); break;}
+			//delay(100);
+			delay(timePing);
+		}
 
-
-			int ready = poll(&fds, 1, timePing);
-        	        if(ready==0){perror("*poll*"); printf(" TTL = %d is few ",memTTL);  continue; }
-                	if(ready<0){perror("_poll_"); break; }
+			int ready = poll(&fds, 1, /*timePing*/100);
+        	        if(ready==0){printf("\nTTL = %d is few ",memTTL);  continue; }
+                	if(ready<0){perror("poll"); bOut=true;  break; }
 
 
 			if( fds.revents & POLLIN )
@@ -259,7 +261,7 @@ int main(int argc, char* argv[])
 				iConnect++;
 			}//poll
 			else printf("\nExit on timeout (%d)\n",timePing);
-		}//nRetry
+	//	}//nRetry
 	}//
 
 	close(raw_sock);

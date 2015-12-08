@@ -3,6 +3,9 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/slab.h>
+#include  <asm/uaccess.h>
+#include <linux/ioctl.h>
+
 #include "ioctl_kbuf.h"
 
 unsigned int major = 701;
@@ -15,36 +18,34 @@ int dev_open = 0;
 #define COUNT_DEVICES 1
 #define KBUF_BUF 200 
 
+struct chkbuf_dev
+{
+    int size;
+    char name[6];
+    struct semaphore sem;
+    struct cdev cdev;
+};
+
 unsigned char *pbuf=0;
 unsigned int pids[KBUF_BUF];
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
 	int err;
-	int retval; 
+	int retval;
+	err = 0; retval = 0;
 
 	retval = -1;// 0 - команда  выпоненена, -1 или  <0 - команда не выполнена  - error
 
-	/* проверить тип и номер битовых полей и не декодировать
-	* неверные команды: вернуть ENOTTY (неверный ioctl) перед access_ok( )
-	*/
+	printk(KERN_INFO" chkbuf: ioctl"); 
 
-	//printk(KERN_INFO "MOD_PSR: psr_ioctl");
-	if (_IOC_TYPE(cmd) != PSR_IOC_MAGIC) return -ENOTTY;
-	if (_IOC_NR(cmd) > PSR_IOC_MAXNR) return -ENOTTY;
-
-	/*
-	 * направление является битовой маской и VERIFY_WRITE отлавливает передачи R/W
-	 * `направление' является ориентированным на пользователя, в то время как
-	 * access_ok является ориентированным на ядро, так что концепции "чтение" и
-	 * "запись" являются обратными
-	 */
+	if (_IOC_TYPE(cmd) != KBUF_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > KBUF_IOC_MAXNR) return -ENOTTY;
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
 		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
-
 
 	if (err) return -EFAULT;
 
@@ -54,15 +55,15 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
         case KBUF_IO_PIDS:
         {
 		return -EFAULT;
-    		
-	    	retval = 0;
+		
+		retval = 0;
 	}
 	break;
 	case KBUF_IOCG_STATISTIC:
 	{
 		int rez; rez=0;
-            	printk(KERN_INFO "KBUF_IOCG_STATISTIC:");
-            	rez=copy_to_user((int __user *)arg, (char*)&pids[0], sizeof(pids));
+		printk(KERN_INFO "KBUF_IOCG_STATISTIC:");
+        	rez=copy_to_user((int __user *)arg, (char*)&pids[0], sizeof(pids));
 
 	    	if(rez)
             	{
@@ -73,7 +74,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 	    	retval = 0;
 	}
 	break;
-	default:  /* redundant, as cmd was checked against MAXNR */
+	default: 
 	return -ENOTTY;
 	}
 
@@ -84,7 +85,8 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 {
 	
-	loff_t newpos; 
+	loff_t newpos;
+	newpos = 0;
 
 	switch(whence) 
 	{ 
@@ -106,77 +108,74 @@ static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 	return newpos; 
 }
 
-static ssize_t chkbuf_read(struct file * pfile, char __user * pbuf, size_t n, loff_t * poff)
+static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
 	int rez;
-	loff_t pos;
+	int pos;
 
-	printk(KERN_INFO "read %s",name);
+	printk(KERN_INFO " chkbuf_read %s",name);
 
- 	pos = /*file->f_pos;*/=*poff
+	pos = *poff; //file->f_pos==*poff
+
 	if (pos >= KBUF_BUF) return -EFAULT;
-	
-	if (pos + count > KBUF_BUF)
-		count = KBUF_BUF - pos;
-	else count = n;
 
-
-	rez=copy_to_user((char __user *)arg, (char*)&pbuf[0], n);	
-        if(rez)
+	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
+        if(rez==0)
         {
                	printk(KERN_ERR " chkbuf_read: error read buf!");
                	return -EFAULT;
-       	}
-
-	return 0;
-}
-
-static ssize_t chkbuf_write(struct file *pfile, const char __user * pbuf, size_t n , loff_t * poff)
-{
-	int pos; 
-	pos = 0; 
-	int count;
-	count=0;
-
-	printk(KERN_INFO" chkbuf_write %s",name);
-
- 	pos = /*file->f_pos;*/=*poff
-	if (pos >= KBUF_BUF) return -EFAULT;
-	
-	if (pos + count > KBUF_BUF)
-		count = KBUF_BUF - pos;
-	else count = n;
-
-	rez=copy_from_user((char*)&pbuf[KBUF_BUF-count],(int __user *)arg,count);
-      	if(rez)
-       	{
-		printk(KERN_ERR" chkbuf_write: error write buf!");
-       		return -EINVAL;
 	}
 
-	*poff += count;
+	*poff += rez;
 
-	return count;
+	return rez; //was readed
+}
+
+static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_t n , loff_t * poff)
+{
+	int pos; int rez;
+	pos = 0; 
+
+	pos =*poff;
+	printk(KERN_INFO" chkbuf_write %s, pos %d",name, pos);
+	if (pos >= KBUF_BUF) return -EFAULT;
+
+	rez = n - copy_from_user((char*)&pbuf[pos],(int __user *)pbufu,n);
+	if(rez==0)
+	{
+		printk(KERN_ERR" chkbuf_write: error write buf!");
+		return -EINVAL;
+	}
+
+	*poff += rez;
+
+	return rez; // was writted
 }
 
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
-	printk(KERN_INFO "open %s",name);
+	printk(KERN_INFO " chkbuf_open %s",name);
+
+	if(dev_open > 0)
+	{
+		printk(KERN_ERR "Error: /dev/chkbuf already open!");
+		return -EINVAL;
+	}
 
 	if(dev_open == 0)
 	{
 		dev_open++;
 		pbuf = kmalloc(KBUF_BUF+1,GFP_KERNEL);
-		if(pbuf == NULL) return -ENOMEM;
+		if(pbuf == NULL)
+		{ 
+			printk(KERN_ERR "Error kmalloc for /dev/chkbuf");
+			return -ENOMEM;
+		}
 
-		struct scull_dev *dev; /* информация об устройстве */
-		dev = container_of(inode->i_cdev, struct scull_dev, cdev);
-		filp->private_data = dev; /* для других методов */
-	}	
+//		struct chkbuf_dev *dev; 
+//		dev = container_of(inode->i_cdev, struct chkbuf_dev, cdev);
+//		filp->private_data = dev; 
 
-	if(dev_open > 0)
-	{
-		printk(KERN_ALERT "Error: /dev/chkbuf already open!");
 	}
 
 	return 0;
@@ -184,7 +183,7 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
-	printk(KERN_INFO "release %s",name);
+	printk(KERN_INFO " chkbuf_release %s",name);
 
 	if(dev_open > 0)
 	{
@@ -231,20 +230,20 @@ static  int chkbuf_init(void)
 		return rez;
 	}*/
 	
-    	//новый способ регитсрации
-    	first_node = MKDEV(major,minor);
-    	rez = register_chrdev_region(first_node,COUNT_DEVICES,name);// получение номера(ов) символьного устройства
+	//новый способ регитсрации
+	first_node = MKDEV(major,minor);
+	rez = register_chrdev_region(first_node,COUNT_DEVICES,name);// получение номера(ов) символьного устройства
 
-    	if(rez!=0) 
-    	{
+	if(rez!=0) 
+	{
 		printk(KERN_ALERT"Error register_chdev_region for %s code %d",name,rez);
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		return rez;
-    	}
+	}
     
-    	pcdev = cdev_alloc();
+	pcdev = cdev_alloc();
 
-    	cdev_init(pcdev,&chkbuf_fops);
+	cdev_init(pcdev,&chkbuf_fops);
 	pcdev->owner=THIS_MODULE;
 	pcdev->ops=&chkbuf_fops;
 	rez = cdev_add(pcdev, first_node,COUNT_DEVICES);
@@ -254,17 +253,16 @@ static  int chkbuf_init(void)
 		unregister_chrdev_region(first_node, COUNT_DEVICES);	
 	}
 
-
     return 0;
 }
 
 static void chkbuf_exit(void)
 {
- 	unregister_chrdev_region(first_node, COUNT_DEVICES);
- 	cdev_del(pcdev);
-    	//unregister_chrdev(major, name);
+	unregister_chrdev_region(first_node, COUNT_DEVICES);
+	cdev_del(pcdev);
+	//unregister_chrdev(major, name);
 
-    	printk(KERN_INFO "goodbye ch module\n");
+	printk(KERN_INFO "goodbye ch module\n");
 }
 
 module_init(chkbuf_init);

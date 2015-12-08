@@ -1,10 +1,8 @@
 CURRENT=$(shell uname -r)
 KDIR=/lib/modules/$(CURRENT)/build
 PWD=$(shell pwd)
-#DEST=/lib/modules/$(CURRENT)/misc
 DEST=PWD
-#TARGET=hello_mod
-#obj-m:=$(TARGET).o
+
 obj-m += hello_mod.o
 obj-m += main_mod.o
 

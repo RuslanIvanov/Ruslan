@@ -4,7 +4,7 @@
 
 static int hello_init(void)
 {
-    printk("Hello module\n");
+     printk("Hello module\n");
     return 0;
 }
 

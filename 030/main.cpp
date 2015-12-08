@@ -38,13 +38,13 @@ int main(int argc,char* argv[], char** env)
 	    if(rez==-1) {printf("Error write %s\n",filename); return 0;}
 	    printf("\nwrited %d bytes",rez);
 
-	    char tmp[20];
+	    char tmp[SSIZE_MAX];
 	    rez = read(fd,tmp,strlen(tmp));
 
 	    if(rez==-1) {printf("Error read %s\n",filename); return 0;}
 	    printf("\nread %d bytes: \n",rez);
 	    for(int i = 0;i<rez;i++)
-		printf("%c",tmp[i]);
+		printf("%x",tmp[i]);
 	    printf("\n");
 	}
 

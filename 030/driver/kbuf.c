@@ -16,7 +16,15 @@ dev_t first_node;
 int dev_open = 0;
 
 #define COUNT_DEVICES 1
-#define KBUF_BUF 200 
+#define KBUF_BUF 2000 
+
+struct statrw
+{
+	unsigned int cr;
+	unsigned int cw;
+};
+
+statrw statistic;
 
 struct chkbuf_dev
 {
@@ -27,7 +35,7 @@ struct chkbuf_dev
 };
 
 unsigned char *pbuf=0;
-unsigned int pids[KBUF_BUF];
+unsigned int pid;
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
@@ -54,16 +62,30 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
         case KBUF_IO_PIDS:
         {
-		return -EFAULT;
-		
-		retval = 0;
+		pid = arg;
+		printk(KERN_INFO "KBUF_IO_PIDS: get pid %d", pid);
+
+		if(pid == 0)
+		{ retval -EFAULT; }
+		else { 
+			/*
+int len=0;
+pid_struct = find_get_pid(p_id);
+task = pid_task(pid_struct,PIDTYPE_PID);
+
+ len = sprintf(buf,"\nname %s\n ",task->comm);
+			
+*/
+			//pid_task
+			retval = 0; 
+			}
 	}
 	break;
 	case KBUF_IOCG_STATISTIC:
 	{
 		int rez; rez=0;
-		printk(KERN_INFO "KBUF_IOCG_STATISTIC:");
-        	rez=copy_to_user((int __user *)arg, (char*)&pids[0], sizeof(pids));
+		printk(KERN_INFO "KBUF_IOCG_STATISTIC");
+        	rez=copy_to_user((int __user *)arg, (char*)&statistic[0], sizeof(struct statrw));
 
 	    	if(rez)
             	{
@@ -98,7 +120,7 @@ static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 	break; 
 	case 2: /* SEEK_END */ 
 		//newpos = dev->size + off; 
-		newpos=2;
+		newpos=KBUF_BUF;
 	default: /* не может произойти */ 
 	return -EINVAL; 
 	} 
@@ -113,9 +135,9 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 	int rez;
 	int pos;
 
-	printk(KERN_INFO " chkbuf_read %s",name);
-
 	pos = *poff; //file->f_pos==*poff
+
+	printk(KERN_INFO " chkbuf_read %s, pos %s",name, pos);
 
 	if (pos >= KBUF_BUF) return -EFAULT;
 
@@ -127,7 +149,7 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 	}
 
 	*poff += rez;
-
+	statistic.cr++;
 	return rez; //was readed
 }
 
@@ -148,7 +170,7 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 	}
 
 	*poff += rez;
-
+	statistic.cw++;
 	return rez; // was writted
 }
 
@@ -165,7 +187,7 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 	if(dev_open == 0)
 	{
 		dev_open++;
-		pbuf = kmalloc(KBUF_BUF+1,GFP_KERNEL);
+		pbuf = kmalloc(KBUF_BUF,GFP_KERNEL);
 		if(pbuf == NULL)
 		{ 
 			printk(KERN_ERR "Error kmalloc for /dev/chkbuf");

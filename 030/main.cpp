@@ -17,6 +17,7 @@ char buf[BUFSIZ];
 bool bOut = false;
 void getStatictic();
 void getPid(int);
+
 int main(int argc,char* argv[], char** env)
 {
 
@@ -68,7 +69,7 @@ void getStatictic(int fd)
 void getPid(int fd ,int _pid)
 {
 	if(fd == 0) return;
-	
+
 	if(ioctl(fd,KBUF_IOCX_IO_PID,(int)&_pid)<0) // подумать ка получить инф о pid in US - двухстронний обмен
 	{perror("ioctl: KBUF_IO_PIDS");}
 }

@@ -24,10 +24,23 @@ size получаются применением sizeof к аргументу da
 
 #define KBUF_IOC_MAGIC 0xfe //как системный номер
 
-//#define KBUF_IO_PIDS		_IO(KBUF_IOC_MAGIC,    0)
+//#define KBUF_IO_GETPIDINFO	_IO(KBUF_IOC_MAGIC,    0)
 #define KBUF_IOCX_IO_PID     	_IOWR(KBUF_IOC_MAGIC,  0, int)// через указатель pid,  а обратно строку???
 #define KBUF_IOCG_STATISTIC	_IOR(KBUF_IOC_MAGIC,   1,  int)
 
-#define KBUF_IOC_MAXNR 2
+#define KBUF_IOC_MAXNR 3
+
+struct PID_INFO
+{
+	int pid;
+	char buf[200];
+};
+
+struct STATISTIC_RW
+{
+        unsigned int cr;
+        unsigned int cw;
+};
+
 
 #endif

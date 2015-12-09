@@ -5,6 +5,8 @@
 #include <linux/slab.h>
 #include  <asm/uaccess.h>
 #include <linux/ioctl.h>
+#include <linux/proc_fs.h>
+#include <linux/pid.h>
 
 #include "ioctl_kbuf.h"
 
@@ -18,13 +20,8 @@ int dev_open = 0;
 #define COUNT_DEVICES 1
 #define KBUF_BUF 2000 
 #define EOF 0
-struct statrw
-{
-	unsigned int cr;
-	unsigned int cw;
-};
 
-struct statrw statistic;
+struct STATISTIC_RW statistic;
 
 struct chkbuf_dev
 {
@@ -38,7 +35,11 @@ struct chkbuf_dev mychdev;
 //mychdev.size = KBUF_BUF;
 
 unsigned char *pbuf=0;
-unsigned int pid;
+
+struct PID_INFO pid_info;
+
+struct pid *pid_struct;
+struct task_struct *task;
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
@@ -65,23 +66,27 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
         case KBUF_IOCX_IO_PID:
         {
-		retval =__get_user(pid, (int __user *)arg);
-//		if (retval == 0)
-//			retval = __put_user(tmp, (int __user *)arg);
+		retval =__get_user(pid_info.pid, (int __user *)arg);
 
-		printk(KERN_INFO "KBUF_IO_PIDS: get pid %d", pid);
+		printk(KERN_INFO "KBUF_IO_PIDS: get pid %d", pid_info.pid);
 
-		if(pid == 0 || retval != 0)
+		if(pid_info.pid == 0 || retval != 0)
 		{ retval = -EFAULT; }
 		else {
-			/*
+
 			int len=0;
-			pid_struct = find_get_pid(p_id);
+			pid_struct = find_get_pid(pid_info.pid);
 			task = pid_task(pid_struct,PIDTYPE_PID);
-			len = sprintf(buf,"\nname %s\n ",task->comm);
-			*/
-//			copy_to_user
-			//pid_task
+			len = sprintf(pid_info.buf,"name %s",task->comm);
+			retval=copy_to_user((int __user *)arg, (char*)&pid_info, strlen(struct PID_INFO));
+              		if(retval)
+            		{
+		                printk(KERN_ERR "KBUF_IOCX_IO_PID: error copy_to_user witch IOCTL");
+                		return -EFAULT;
+            		}
+
+			printk(KERN_INFO  "information about process %d: %s",pid_info.pid, pid_info.buf);
+
 			retval = 0; 
 			}
 	}
@@ -90,7 +95,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 	{
 		int rez; rez=0;
 		printk(KERN_INFO "KBUF_IOCG_STATISTIC");
-		rez=copy_to_user((int __user *)arg, (char*)&statistic, sizeof(struct statrw));
+		rez=copy_to_user((int __user *)arg, (char*)&statistic, sizeof(struct STATISTIC_RW));
 
 	    	if(rez)
             	{

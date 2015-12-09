@@ -17,14 +17,14 @@ int dev_open = 0;
 
 #define COUNT_DEVICES 1
 #define KBUF_BUF 2000 
-
+#define EOF 0
 struct statrw
 {
 	unsigned int cr;
 	unsigned int cw;
 };
 
-statrw statistic;
+struct statrw statistic;
 
 struct chkbuf_dev
 {
@@ -33,6 +33,9 @@ struct chkbuf_dev
     struct semaphore sem;
     struct cdev cdev;
 };
+
+struct chkbuf_dev mychdev;
+//mychdev.size = KBUF_BUF;
 
 unsigned char *pbuf=0;
 unsigned int pid;
@@ -60,22 +63,24 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 	switch(cmd)
 	{
 
-        case KBUF_IO_PIDS:
+        case KBUF_IOCX_IO_PID:
         {
-		pid = arg;
+		retval =__get_user(pid, (int __user *)arg);
+//		if (retval == 0)
+//			retval = __put_user(tmp, (int __user *)arg);
+
 		printk(KERN_INFO "KBUF_IO_PIDS: get pid %d", pid);
 
-		if(pid == 0)
-		{ retval -EFAULT; }
-		else { 
+		if(pid == 0 || retval != 0)
+		{ retval = -EFAULT; }
+		else {
 			/*
-int len=0;
-pid_struct = find_get_pid(p_id);
-task = pid_task(pid_struct,PIDTYPE_PID);
-
- len = sprintf(buf,"\nname %s\n ",task->comm);
-			
-*/
+			int len=0;
+			pid_struct = find_get_pid(p_id);
+			task = pid_task(pid_struct,PIDTYPE_PID);
+			len = sprintf(buf,"\nname %s\n ",task->comm);
+			*/
+//			copy_to_user
 			//pid_task
 			retval = 0; 
 			}
@@ -85,13 +90,15 @@ task = pid_task(pid_struct,PIDTYPE_PID);
 	{
 		int rez; rez=0;
 		printk(KERN_INFO "KBUF_IOCG_STATISTIC");
-        	rez=copy_to_user((int __user *)arg, (char*)&statistic[0], sizeof(struct statrw));
+		rez=copy_to_user((int __user *)arg, (char*)&statistic, sizeof(struct statrw));
 
 	    	if(rez)
             	{
                		printk(KERN_ERR "KBUF_IOCG_STATISTIC: error copy_to_user witch IOCTL");
                		return -EFAULT;
             	}
+
+		printk(KERN_INFO  "statistic for device %s: [read %d, write %d]",name,statistic.cr,statistic.cw);
 
 	    	retval = 0;
 	}
@@ -106,7 +113,7 @@ task = pid_task(pid_struct,PIDTYPE_PID);
 
 static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 {
-	
+
 	loff_t newpos;
 	newpos = 0;
 
@@ -120,7 +127,7 @@ static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 	break; 
 	case 2: /* SEEK_END */ 
 		//newpos = dev->size + off; 
-		newpos=KBUF_BUF;
+		newpos=KBUF_BUF+off;
 	default: /* не может произойти */ 
 	return -EINVAL; 
 	} 
@@ -137,9 +144,9 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 
 	pos = *poff; //file->f_pos==*poff
 
-	printk(KERN_INFO " chkbuf_read %s, pos %s",name, pos);
+	printk(KERN_INFO " chkbuf_read %s, pos %d",name, pos);
 
-	if (pos >= KBUF_BUF) return -EFAULT;
+	if (pos >= KBUF_BUF) return EOF;
 
 	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
         if(rez==0)
@@ -160,7 +167,7 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 
 	pos =*poff;
 	printk(KERN_INFO" chkbuf_write %s, pos %d",name, pos);
-	if (pos >= KBUF_BUF) return -EFAULT;
+	if (pos >= KBUF_BUF) return EOF;
 
 	rez = n - copy_from_user((char*)&pbuf[pos],(int __user *)pbufu,n);
 	if(rez==0)

@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include "driver/ioctl_kbuf.h"
 
-int fd;
+int  fd;
 char filename[BUFSIZ];
 void out(int sig=0);
 char buf[BUFSIZ];

@@ -3,7 +3,7 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/slab.h>
-#include  <asm/uaccess.h>
+#include <asm/uaccess.h>
 #include <linux/ioctl.h>
 #include <linux/proc_fs.h>
 #include <linux/pid.h>
@@ -75,10 +75,10 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 		else {
 
 			int len=0;
-			pid_struct = find_get_pid(pid_info.pid);
+			pid_struct = /*find_get_pid*/find_vpid(pid_info.pid);
 			task = pid_task(pid_struct,PIDTYPE_PID);
-			len = sprintf(pid_info.buf,"name %s",task->comm);
-			retval=copy_to_user((int __user *)arg, (char*)&pid_info, strlen(struct PID_INFO));
+			len = sprintf(pid_info.buf,"name %s",(task->comm));
+			retval=copy_to_user((int __user *)arg, (char*)&pid_info, sizeof(struct PID_INFO));
               		if(retval)
             		{
 		                printk(KERN_ERR "KBUF_IOCX_IO_PID: error copy_to_user witch IOCTL");

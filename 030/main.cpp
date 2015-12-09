@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
 #include "driver/ioctl_kbuf.h"
 
 int  fd;
@@ -15,8 +16,11 @@ char filename[BUFSIZ];
 void out(int sig=0);
 char buf[BUFSIZ];
 bool bOut = false;
-void getStatictic();
-void getPid(int);
+void getStatictic(int);
+void getPid(int,int);
+
+PID_INFO pidInfo;
+STATISTIC_RW statistic;
 
 int main(int argc,char* argv[], char** env)
 {
@@ -31,9 +35,6 @@ int main(int argc,char* argv[], char** env)
 	fd = open(&filename[0],O_RDWR); //O_RDONLY,O_WRONLY,O_RDWR 
 	if(fd==-1) {printf("\nError open %s\n",filename); return 0;}
 
-
-	getPid(fd,getpid());
-
 	int countStr=0;
 	while(bOut==false)
 	{
@@ -46,16 +47,21 @@ int main(int argc,char* argv[], char** env)
 	    if(rez==-1) {printf("Error write %s\n",filename); return 0;}
 	    printf("\nwrited %d bytes",rez);
 
-	    char tmp[/*BUFSIZ*/100];
+	    char tmp[100];
 	    rez = read(fd,tmp,100);
 
 	    if(rez==-1) {printf("Error read %s\n",filename); return 0;}
+
+	    if(rez==0) {printf("\nEnd of file\n"); break;}
+
 	    printf("\nread %d bytes: \n",rez);
 	    for(int i = 0;i<rez;i++)
 		printf("%x",tmp[i]);
 	    printf("\n");
 	}
 
+	getStatictic(fd);
+	getPid(fd,getpid());
 	close(fd);
 	
 	return 0;
@@ -64,14 +70,22 @@ int main(int argc,char* argv[], char** env)
 void getStatictic(int fd)
 {
 	if(fd == 0) return;
+
+	if(ioctl(fd,KBUF_IOCG_STATISTIC,(int)&statistic)<0) 
+	{perror("ioctl: KBUF_IOCG_STATISTIC");}
+
+	printf("\nstatictic: read ' %d ', write ' %d '\n", statistic.cr,statistic.cw);
 }
 
 void getPid(int fd ,int _pid)
 {
 	if(fd == 0) return;
 
-	if(ioctl(fd,KBUF_IOCX_IO_PID,(int)&_pid)<0) // подумать ка получить инф о pid in US - двухстронний обмен
-	{perror("ioctl: KBUF_IO_PIDS");}
+	pidInfo.pid = _pid;
+	if(ioctl(fd,KBUF_IOCX_IO_PID,(int)&pidInfo)<0) 
+	{perror("ioctl: KBUF_IOCX_IO_PID");}
+
+	printf("\npid information: ' %d ' ' %s '\n", pidInfo.pid,pidInfo.buf);
 }
 
 void out(int sig)

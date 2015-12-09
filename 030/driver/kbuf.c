@@ -7,6 +7,7 @@
 #include <linux/ioctl.h>
 #include <linux/proc_fs.h>
 #include <linux/pid.h>
+#include <linux/sched.h>
 
 #include "ioctl_kbuf.h"
 
@@ -39,7 +40,7 @@ unsigned char *pbuf=0;
 struct PID_INFO pid_info;
 
 struct pid *pid_struct;
-struct task_struct *task;
+struct task_struct *ptask;
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
@@ -68,16 +69,17 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
         {
 		retval =__get_user(pid_info.pid, (int __user *)arg);
 
-		printk(KERN_INFO "KBUF_IO_PIDS: get pid %d", pid_info.pid);
+		printk(KERN_INFO "KBUF_IOCX_IO_PID: get pid %d", pid_info.pid);
 
 		if(pid_info.pid == 0 || retval != 0)
 		{ retval = -EFAULT; }
 		else {
 
 			int len=0;
-			pid_struct = /*find_get_pid*/find_vpid(pid_info.pid);
-			task = pid_task(pid_struct,PIDTYPE_PID);
-			len = sprintf(pid_info.buf,"name %s",(task->comm));
+			pid_struct = find_vpid(pid_info.pid);
+			ptask = pid_task(pid_struct,PIDTYPE_PID);
+			
+			len = sprintf(pid_info.buf,"%s",ptask->comm);
 			retval=copy_to_user((int __user *)arg, (char*)&pid_info, sizeof(struct PID_INFO));
               		if(retval)
             		{
@@ -85,7 +87,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
                 		return -EFAULT;
             		}
 
-			printk(KERN_INFO  "information about process %d: %s",pid_info.pid, pid_info.buf);
+			printk(KERN_INFO  " information about process %d: %s",pid_info.pid, pid_info.buf);
 
 			retval = 0; 
 			}
@@ -103,7 +105,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
                		return -EFAULT;
             	}
 
-		printk(KERN_INFO  "statistic for device %s: [read %d, write %d]",name,statistic.cr,statistic.cw);
+		printk(KERN_INFO  " statistic for device %s: [read %d, write %d]",name,statistic.cr,statistic.cw);
 
 	    	retval = 0;
 	}

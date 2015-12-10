@@ -80,6 +80,7 @@ int main(int argc,char* argv[], char** env)
 
 	getStatictic(fd);
 	getPid(fd,getpid());
+	getIrq(fd);
 
 	close(fd);
 

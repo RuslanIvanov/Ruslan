@@ -47,6 +47,7 @@ loff_t posW;
 loff_t posR;
 
 unsigned int numIrq;
+int dev;
 //typedef irqreturn_t (*irq_handler_t)( int, void* );
 static irqreturn_t inter_handler ( int irq, void *dev )
 {
@@ -88,7 +89,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
         case KBUF_IOCX_IO_PID:
         {
-		retval = get_user(pid_info.pid, (int __user *)arg);
+		retval = __get_user(pid_info.pid, (int __user *)arg);
 
 		printk(KERN_INFO "KBUF_IOCX_IO_PID: get pid %d", pid_info.pid);
 
@@ -132,7 +133,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 	}
 	break;
 	case KBUF_IOCG_GETNUMIRQ:
-		retval = put_user(numIrq, (int __user *)arg;
+		retval = __put_user(numIrq, (int __user *)arg);
 		if(retval!=0) {printk(KERN_ERR "KBUF_IOCG_GETNUMIRQ: error get number irq witch IOCTL");}
 	break;
 	default: 
@@ -229,7 +230,7 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
-	int rez; int dev;
+	int rez; 
 
 	printk(KERN_INFO " chkbuf_open %s",name);
 	
@@ -281,7 +282,7 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
 
 	if(pbuf)
 	{
-		free_irq(19, NULL);
+		free_irq(19, &dev);
 		kfree(pbuf);
 		pbuf=0;
 	}

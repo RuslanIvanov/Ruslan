@@ -18,6 +18,7 @@ char buf[BUFSIZ];
 bool bOut = false;
 void getStatictic(int);
 void getPid(int,int);
+void getIrq(int);
 
 PID_INFO pidInfo;
 STATISTIC_RW statistic;
@@ -89,7 +90,7 @@ void getStatictic(int fd)
 {
 	if(fd == 0) return;
 
-	if(ioctl(fd,KBUF_IOCG_STATISTIC,(int)&statistic)<0) 
+	if(ioctl(fd,KBUF_IOCG_STATISTIC,&statistic)<0) 
 	{perror("ioctl: KBUF_IOCG_STATISTIC");}
 
 	printf("\nstatictic: read ' %d ', write ' %d '\n", statistic.cr,statistic.cw);
@@ -100,10 +101,21 @@ void getPid(int fd ,int _pid)
 	if(fd == 0) return;
 
 	pidInfo.pid = _pid;
-	if(ioctl(fd,KBUF_IOCX_IO_PID,(int)&pidInfo)<0) 
+	if(ioctl(fd,KBUF_IOCX_IO_PID,&pidInfo)<0) 
 	{perror("ioctl: KBUF_IOCX_IO_PID");}
 
 	printf("\npid information: ' %d ' ' %s '\n", pidInfo.pid,pidInfo.buf);
+}
+
+void getIrq(int fd)
+{
+	if(fd == 0) return;
+
+	unsigned int numIrq=0;
+	if(ioctl(fd,KBUF_IOCG_GETNUMIRQ,&numIrq)<0) 
+	{perror("ioctl: KBUF_IOCG_GETNUMIRQ");}
+
+	printf("\nnum irg: ' %d '\n", numIrq);
 }
 
 void out(int sig)

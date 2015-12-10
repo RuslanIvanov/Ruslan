@@ -8,6 +8,7 @@
 #include <linux/proc_fs.h>
 #include <linux/pid.h>
 #include <linux/sched.h>
+#include <linux/interrupt.h>
 
 #include "ioctl_kbuf.h"
 
@@ -45,6 +46,23 @@ struct task_struct *ptask;
 loff_t posW;
 loff_t posR;
 
+unsigned int numIrq;
+//typedef irqreturn_t (*irq_handler_t)( int, void* );
+static irqreturn_t inter_handler ( int irq, void *dev )
+{
+	int mydev;
+	mydev = *((int*)dev);
+	
+	if( mydev == 1982)
+	{
+		numIrq++;
+	   	return IRQ_HANDLED;
+	}
+
+	return IRQ_NONE;
+} 
+
+
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
 	int err;
@@ -70,7 +88,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
         case KBUF_IOCX_IO_PID:
         {
-		retval =__get_user(pid_info.pid, (int __user *)arg);
+		retval = get_user(pid_info.pid, (int __user *)arg);
 
 		printk(KERN_INFO "KBUF_IOCX_IO_PID: get pid %d", pid_info.pid);
 
@@ -112,6 +130,10 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
 	    	retval = 0;
 	}
+	break;
+	case KBUF_IOCG_GETNUMIRQ:
+		retval = put_user(numIrq, (int __user *)arg;
+		if(retval!=0) {printk(KERN_ERR "KBUF_IOCG_GETNUMIRQ: error get number irq witch IOCTL");}
 	break;
 	default: 
 	return -ENOTTY;
@@ -207,9 +229,12 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
-	printk(KERN_INFO " chkbuf_open %s",name);
+	int rez; int dev;
 
+	printk(KERN_INFO " chkbuf_open %s",name);
+	
 	posW=0; posR=0;
+	rez=0; dev=0;
 
 	if(dev_open > 0)
 	{
@@ -219,11 +244,20 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 	if(dev_open == 0)
 	{
+
+		dev=1982;
+		rez = request_irq(19, inter_handler, IRQF_SHARED, "IRQ_KBUF", &dev);
+		if(rez != 0)
+		{
+			printk(KERN_ERR " Error  request_irq N 19 for /dev/chkbuf");
+			return rez;
+		}
+
 		dev_open++;
 		pbuf = kmalloc(KBUF_BUF,GFP_KERNEL);
 		if(pbuf == NULL)
 		{ 
-			printk(KERN_ERR "Error kmalloc for /dev/chkbuf");
+			printk(KERN_ERR " Error kmalloc for /dev/chkbuf");
 			return -ENOMEM;
 		}
 
@@ -247,6 +281,7 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
 
 	if(pbuf)
 	{
+		free_irq(19, NULL);
 		kfree(pbuf);
 		pbuf=0;
 	}

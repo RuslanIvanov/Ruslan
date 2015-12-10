@@ -24,7 +24,7 @@ int dev_open = 0;
 
 struct STATISTIC_RW statistic;
 
-struct chkbuf_dev
+/*struct chkbuf_dev
 {
     int size;
     char name[6];
@@ -33,7 +33,7 @@ struct chkbuf_dev
 };
 
 struct chkbuf_dev mychdev;
-//mychdev.size = KBUF_BUF;
+mychdev.size = KBUF_BUF;*/
 
 unsigned char *pbuf=0;
 
@@ -41,6 +41,9 @@ struct PID_INFO pid_info;
 
 struct pid *pid_struct;
 struct task_struct *ptask;
+
+loff_t posW;
+loff_t posR;
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
@@ -78,7 +81,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 			int len=0;
 			pid_struct = find_vpid(pid_info.pid);
 			ptask = pid_task(pid_struct,PIDTYPE_PID);
-			
+
 			len = sprintf(pid_info.buf,"%s",ptask->comm);
 			retval=copy_to_user((int __user *)arg, (char*)&pid_info, sizeof(struct PID_INFO));
               		if(retval)
@@ -124,38 +127,49 @@ static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
 	loff_t newpos;
 	newpos = 0;
 
-	switch(whence) 
-	{ 
-	case 0: /* SEEK_SET */ //0,1,2
-		newpos = off; 
-	break; 
-	case 1: /* SEEK_CUR */ 
-		newpos = filp->f_pos + off; 
-	break; 
-	case 2: /* SEEK_END */ 
-		//newpos = dev->size + off; 
+	switch(whence)
+	{
+	case 0: /* SEEK_SET */
+		newpos = off;
+	break;
+	case 1: /* SEEK_CUR */
+		newpos = filp->f_pos + off;
+	break;
+	case 2: /* SEEK_END */
+		//newpos = dev->size + off;
 		newpos=KBUF_BUF+off;
-	default: /* не может произойти */ 
-	return -EINVAL; 
-	} 
+	default: /* не может произойти */
+	return -EINVAL;
+	}
 
-	if (newpos < 0) return -EINVAL; 
-		filp->f_pos = newpos; 
-	return newpos; 
+	if (newpos < 0) return -EINVAL;
+		filp->f_pos = newpos;
+	return newpos;
 }
 
 static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
 	int rez;
 	int pos;
+	int currentN;
 
 	pos = *poff; //file->f_pos==*poff
 
 	printk(KERN_INFO " chkbuf_read %s, pos %d",name, pos);
 
-	if (pos >= KBUF_BUF) return EOF;
+	if(pos >= KBUF_BUF) return EOF;
+	if(pos >= posW) return EOF;
+	if(posW > n)
+	{
+		printk(KERN_ERR " chkbuf_read: small reception buffer for %s",name);
+		return -EFAULT; //маленький приемный буффер
+	}
 
-	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
+	//коррекция n:
+	currentN = posW - pos;
+	rez = currentN - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], currentN);
+
+//	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
         if(rez==0)
         {
                	printk(KERN_ERR " chkbuf_read: error read buf!");
@@ -163,6 +177,7 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 	}
 
 	*poff += rez;
+	posR=*poff;
 	statistic.cr++;
 	return rez; //was readed
 }
@@ -174,6 +189,7 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 
 	pos =*poff;
 	printk(KERN_INFO" chkbuf_write %s, pos %d",name, pos);
+
 	if (pos >= KBUF_BUF) return EOF;
 
 	rez = n - copy_from_user((char*)&pbuf[pos],(int __user *)pbufu,n);
@@ -184,6 +200,7 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 	}
 
 	*poff += rez;
+	posW = *poff;
 	statistic.cw++;
 	return rez; // was writted
 }
@@ -191,6 +208,8 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
 	printk(KERN_INFO " chkbuf_open %s",name);
+
+	posW=0; posR=0;
 
 	if(dev_open > 0)
 	{

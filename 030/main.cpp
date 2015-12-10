@@ -41,29 +41,47 @@ int main(int argc,char* argv[], char** env)
 	    sleep(1);
 	    int rez=0;
 
-	    sprintf(buf,"It is numper string %d\n", countStr++);
+	    //sprintf(buf,"It is numper string %d\n", countStr++);
+	    //rez = write(fd,buf,strlen(buf));
 
-	    rez = write(fd,buf,strlen(buf));
-	    if(rez==-1) {printf("Error write %s\n",filename); return 0;}
+	    int N=9;
+	    for(int i=0;i<N;i++)
+	    {
+		if(i==0)
+			buf[i]=0;
+		else if(i==(N-1)) 
+			buf[i]=0;
+		else buf[i]=i;
+   	    }
+
+	    rez = write(fd,buf,N);
+	    if(rez==-1) {printf("Error write %s\n",filename); bOut=true; break;}
 	    printf("\nwrited %d bytes",rez);
 
-	    char tmp[100];
-	    rez = read(fd,tmp,100);
+	    if(lseek(fd,0,SEEK_SET)<0) 
+	    {perror("lseek"); break;}
 
-	    if(rez==-1) {printf("Error read %s\n",filename); return 0;}
+	    while(1)
+	    {
+		char tmp[100];
+		rez = read(fd,tmp,1000);
 
-	    if(rez==0) {printf("\nEnd of file\n"); break;}
+	    	if(rez==-1) {printf("Error read %s\n",filename); bOut=true; break;}
 
-	    printf("\nread %d bytes: \n",rez);
-	    for(int i = 0;i<rez;i++)
-		printf("%x",tmp[i]);
-	    printf("\n");
+	    	if(rez==0) {printf("\nEnd of file\n"); break;}
+
+		printf("\nread %d bytes: \n",rez);
+		for(int i = 0;i<rez;i++)
+			printf("%x",tmp[i]);
+		 printf("\n");
+	    }
 	}
 
 	getStatictic(fd);
 	getPid(fd,getpid());
+
 	close(fd);
-	
+
 	return 0;
 }
 

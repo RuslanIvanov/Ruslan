@@ -110,6 +110,8 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
             		}
 
 			printk(KERN_INFO  " information about process %d: %s",pid_info.pid, pid_info.buf);
+			printk(KERN_INFO  " current task is %s [%d]", current->comm, current->pid );
+
 
 			retval = 0; 
 			}

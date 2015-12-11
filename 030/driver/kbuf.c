@@ -183,6 +183,7 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 	printk(KERN_INFO " chkbuf_read %s, pos %d",name, pos);
 
 	if(pos >= KBUF_BUF) return EOF;
+
 	if(pos >= posW) return EOF;
 	if(posW > n)
 	{
@@ -192,7 +193,9 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 
 	//коррекция n:
 	currentN = posW - pos;
-	rez = currentN - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], currentN);
+//	if(n < pos){ currentN = n - pos; n = n - currentN; }
+
+	rez = currentN - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], currentN); //
 
 //	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
         if(rez==0)

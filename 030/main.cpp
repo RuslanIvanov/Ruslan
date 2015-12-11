@@ -64,8 +64,8 @@ int main(int argc,char* argv[], char** env)
 
 	    while(1)
 	    {
-		char tmp[100];
-		rez = read(fd,tmp,100);
+		char tmp[70];
+		rez = read(fd,tmp,70);
 
 	    	if(rez==-1) {printf("Error read %s\n",filename); bOut=true; break;}
 

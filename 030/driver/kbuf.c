@@ -53,15 +53,14 @@ static irqreturn_t inter_handler ( int irq, void *dev )
 {
 	int mydev;
 	mydev = *((int*)dev);
-	
-	if( mydev == 1982)
+	if( mydev == 1982 )
 	{
 		numIrq++;
 	   	return IRQ_HANDLED;
 	}
 
 	return IRQ_NONE;
-} 
+}
 
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
@@ -101,7 +100,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 			pid_struct = find_vpid(pid_info.pid);
 			ptask = pid_task(pid_struct,PIDTYPE_PID);
 
-			len = sprintf(pid_info.buf,"%s",ptask->comm);
+			len = sprintf(pid_info.buf,"task is '%s', pid = %d, parent is '%s'",ptask->comm, ptask->pid, ptask->parent->comm);
 			retval=copy_to_user((int __user *)arg, (char*)&pid_info, sizeof(struct PID_INFO));
               		if(retval)
             		{
@@ -109,9 +108,8 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
                 		return -EFAULT;
             		}
 
-			printk(KERN_INFO  " information about process %d: %s",pid_info.pid, pid_info.buf);
-			printk(KERN_INFO  " current task is %s [%d]", current->comm, current->pid );
-
+			//printk(KERN_INFO  " information about process %d: %s",pid_info.pid, pid_info.buf);
+			printk(KERN_INFO  " current task is %s [%d] parent %s", current->comm, current->pid, current->parent->comm );
 
 			retval = 0; 
 			}

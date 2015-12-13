@@ -33,19 +33,21 @@ int main(int argc,char* argv[], char** env)
 
 	printf("\nfile ' %s ', exit ' Ctrl+C '\n",&filename[0]);
 
-	fd = open(&filename[0],O_RDWR); //O_RDONLY,O_WRONLY,O_RDWR 
+	fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
+//	fd = open(&filename[0],O_RDONLY); 
+//	fd = open(&filename[0],O_WRONLY); 
 	if(fd==-1) {printf("\nError open %s\n",filename); return 0;}
 
 	int countStr=0;
 	while(bOut==false)
 	{
-	   // sleep(1);
+	    sleep(1);
 	    int rez=0;
 
-	    //sprintf(buf,"It is numper string %d\n", countStr++);
-	    //rez = write(fd,buf,strlen(buf));
+	    sprintf(buf,"It is number string %d\n", countStr++);
+	    rez = write(fd,buf,strlen(buf)+1);
 
-	    int N=9;
+	   /* int N=9;
 	    for(int i=0;i<N;i++)
 	    {
 		if(i==0)
@@ -54,23 +56,23 @@ int main(int argc,char* argv[], char** env)
 			buf[i]=0;
 		else buf[i]=i;
    	    }
+	    rez = write(fd,buf,N);*/
 
-	    rez = write(fd,buf,N);
 	    if(rez==-1) {printf("Error write %s\n",filename); bOut=true; break;}
 	    printf("\nwrited %d bytes",rez);
 
 	    if(lseek(fd,0,SEEK_SET)<0) 
 	    {perror("lseek"); bOut=true; break;}
-		char tmp[3000];
-		rez = read(fd,tmp,3000);
+		char tmp[70];
+		rez = read(fd,tmp,70);
 
-	    	if(rez==-1) {printf("Error read %s\n",filename); bOut=true; break;}
+	    	if(rez==-1) {printf("\nError read %s\n",filename); bOut=true; break;}
 
 	    	if(rez==0) {printf("\nEnd of file\n"); bOut=true; break;}
 
 		printf("\nread %d bytes: \n",rez);
 		for(int i = 0;i<rez;i++)
-			printf("%x",tmp[i]);
+			printf("%c",tmp[i]);
 		 printf("\n");
 	}
 

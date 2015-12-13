@@ -9,6 +9,7 @@
 #include <linux/pid.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/wait.h>
 
 #include "ioctl_kbuf.h"
 
@@ -27,10 +28,13 @@ struct STATISTIC_RW statistic;
 
 /*struct chkbuf_dev
 {
-    int size;
-    char name[6];
-    struct semaphore sem;
-    struct cdev cdev;
+    	int size;
+    	char name[6];
+    	struct semaphore sem;
+    	struct cdev cdev;
+	loff_t posW;
+	loff_t posR;
+
 };
 
 struct chkbuf_dev mychdev;
@@ -44,11 +48,14 @@ struct pid *pid_struct;
 struct task_struct *ptask;
 
 loff_t posW;
-loff_t posR;
+//loff_t posR;
 
 unsigned int numIrq;
 int dev;
-//typedef irqreturn_t (*irq_handler_t)( int, void* );
+
+static DECLARE_WAIT_QUEUE_HEAD(wq);
+static int flag = 0;
+
 static irqreturn_t inter_handler ( int irq, void *dev )
 {
 	int mydev;
@@ -108,7 +115,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
                 		return -EFAULT;
             		}
 
-			//printk(KERN_INFO  " information about process %d: %s",pid_info.pid, pid_info.buf);
+			//для текущего процесса current:
 			printk(KERN_INFO  " current task is %s [%d] parent %s", current->comm, current->pid, current->parent->comm );
 
 			retval = 0; 
@@ -174,60 +181,70 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 {
 	int rez;
 	int pos;
-	int currentN;
+
+	//wait_event_interruptible(wq, flag != 0);
+        //flag = 0;
 
 	pos = *poff; //file->f_pos==*poff
 
-	printk(KERN_INFO " chkbuf_read %s, pos %d",name, pos);
+	printk(KERN_INFO " chkbuf_read %s, pos %d\n",name, pos);
 
 	if(pos >= KBUF_BUF) return EOF;
 
-	if(pos >= posW) return EOF;
-	if(posW > n)
+	if(n>posW)
 	{
-		printk(KERN_ERR " chkbuf_read: small reception buffer for %s",name);
-		return -EFAULT; //маленький приемный буффер
+		n=posW;
 	}
 
-	//коррекция n:
-	currentN = posW - pos;
-//	if(n < pos){ currentN = n - pos; n = n - currentN; }
+	if(pos>=posW) return EOF;
 
-	rez = currentN - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], currentN); //
-
-//	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
+	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
         if(rez==0)
         {
-               	printk(KERN_ERR " chkbuf_read: error read buf!");
+               	printk(KERN_ERR " chkbuf_read: error read buf!\n");
                	return -EFAULT;
 	}
 
 	*poff += rez;
-	posR=*poff;
+	//posR=*poff;
 	statistic.cr++;
+	printk(KERN_INFO " chkbuf_read current pos %d\n",(int)(*poff));
+
 	return rez; //was readed
 }
 
 static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_t n , loff_t * poff)
 {
-	int pos; int rez;
-	pos = 0; 
+	int pos; int rez; int correctN;
+	pos = 0;  correctN=0;
+
+	//flag = 1;
+        //wake_up_interruptible(&wq);
 
 	pos =*poff;
-	printk(KERN_INFO" chkbuf_write %s, pos %d",name, pos);
+	printk(KERN_INFO" chkbuf_write %s, pos %d\n",name, pos);
 
 	if (pos >= KBUF_BUF) return EOF;
+
+	if(n>KBUF_BUF)
+	{
+		n = KBUF_BUF;
+		printk(KERN_ERR" chkbuf_write: error (n>KBUF_BUF)!\n");
+
+	}
 
 	rez = n - copy_from_user((char*)&pbuf[pos],(int __user *)pbufu,n);
 	if(rez==0)
 	{
-		printk(KERN_ERR" chkbuf_write: error write buf!");
+		printk(KERN_ERR" chkbuf_write: error write buf!\n");
 		return -EINVAL;
 	}
 
 	*poff += rez;
 	posW = *poff;
 	statistic.cw++;
+	printk(KERN_INFO " chkbuf_write current pos %d\n",(int)(*poff));
+
 	return rez; // was writted
 }
 
@@ -235,35 +252,20 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
 	int rez; 
 
-	printk(KERN_INFO " chkbuf_open %s",name);
-	
-	posW=0; posR=0;
+	printk(KERN_INFO " chkbuf_open %s\n",name);
+
 	rez=0; dev=0;
 
-	if(dev_open > 0)
+	if(dev_open > 0)//(COUNT_DEVICES-1)
 	{
-		printk(KERN_ERR "Error: /dev/chkbuf already open!");
+		printk(KERN_ERR "Error: /dev/chkbuf already open!\n");
 		return -EINVAL;
 	}
 
 	if(dev_open == 0)
 	{
-
-		dev=1982;
-		rez = request_irq(19, inter_handler, IRQF_SHARED, "IRQ_KBUF", &dev);
-		if(rez != 0)
-		{
-			printk(KERN_ERR " Error  request_irq N 19 for /dev/chkbuf");
-			return rez;
-		}
-
+		pfile->f_pos=0;
 		dev_open++;
-		pbuf = kmalloc(KBUF_BUF,GFP_KERNEL);
-		if(pbuf == NULL)
-		{ 
-			printk(KERN_ERR " Error kmalloc for /dev/chkbuf");
-			return -ENOMEM;
-		}
 
 //		struct chkbuf_dev *dev; 
 //		dev = container_of(inode->i_cdev, struct chkbuf_dev, cdev);
@@ -276,20 +278,17 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
-	printk(KERN_INFO " chkbuf_release %s",name);
+	printk(KERN_INFO " chkbuf_release %s\n",name);
 
 	if(dev_open > 0)
 	{
 		dev_open--;
 	}
 
-	if(pbuf)
+	if(dev_open==0)
 	{
-		free_irq(19, &dev);
-		kfree(pbuf);
-		pbuf=0;
 	}
-	
+
 	return 0;
 }
 
@@ -306,7 +305,7 @@ static const struct file_operations chkbuf_fops = {
 static  int chkbuf_init(void)
 {
     	int rez;
-    	printk(KERN_INFO "start ch module\n");
+    	printk(KERN_INFO " start ch module\n");
 
     	//Старый способ регистрации
     	/*
@@ -330,7 +329,7 @@ static  int chkbuf_init(void)
 
 	if(rez!=0) 
 	{
-		printk(KERN_ALERT"Error register_chdev_region for %s code %d",name,rez);
+		printk(KERN_ERR" Error register_chdev_region for %s code %d\n",name,rez);
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		return rez;
 	}
@@ -344,10 +343,27 @@ static  int chkbuf_init(void)
 
 	if ( rez < 0 )
 	{
-		unregister_chrdev_region(first_node, COUNT_DEVICES);	
+		unregister_chrdev_region(first_node, COUNT_DEVICES);
+		return rez;
 	}
 
-    return 0;
+	pbuf = kmalloc(KBUF_BUF,GFP_KERNEL);
+        if(pbuf == NULL)
+        { 
+               printk(KERN_ERR " Error kmalloc for /dev/chkbuf\n");
+               return -ENOMEM;
+        }
+
+	dev=1982;
+	rez = request_irq(19, inter_handler, IRQF_SHARED, "IRQ_KBUF", &dev);
+	if(rez != 0)
+	{
+		printk(KERN_ERR " Error  request_irq N 19 for /dev/chkbuf\n");
+		return rez;
+	}
+
+	posW=0;
+    	return 0;
 }
 
 static void chkbuf_exit(void)
@@ -356,7 +372,18 @@ static void chkbuf_exit(void)
 	cdev_del(pcdev);
 	//unregister_chrdev(major, name);
 
-	printk(KERN_INFO "goodbye ch module\n");
+	if(pbuf)
+        {
+                kfree(pbuf);
+                pbuf=0;
+		printk(KERN_INFO " kfree for kbuf)\n");
+
+        }
+
+	free_irq(19, &dev);
+	printk(KERN_INFO " free_irq for kbuf \n");
+
+	printk(KERN_INFO " goodbye, kbuf module\n");
 }
 
 module_init(chkbuf_init);

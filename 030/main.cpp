@@ -39,7 +39,7 @@ int main(int argc,char* argv[], char** env)
 	int countStr=0;
 	while(bOut==false)
 	{
-	    sleep(1);
+	   // sleep(1);
 	    int rez=0;
 
 	    //sprintf(buf,"It is numper string %d\n", countStr++);
@@ -60,22 +60,18 @@ int main(int argc,char* argv[], char** env)
 	    printf("\nwrited %d bytes",rez);
 
 	    if(lseek(fd,0,SEEK_SET)<0) 
-	    {perror("lseek"); break;}
-
-	    while(1)
-	    {
-		char tmp[70];
-		rez = read(fd,tmp,70);
+	    {perror("lseek"); bOut=true; break;}
+		char tmp[3000];
+		rez = read(fd,tmp,3000);
 
 	    	if(rez==-1) {printf("Error read %s\n",filename); bOut=true; break;}
 
-	    	if(rez==0) {printf("\nEnd of file\n"); break;}
+	    	if(rez==0) {printf("\nEnd of file\n"); bOut=true; break;}
 
 		printf("\nread %d bytes: \n",rez);
 		for(int i = 0;i<rez;i++)
 			printf("%x",tmp[i]);
 		 printf("\n");
-	    }
 	}
 
 	getStatictic(fd);
@@ -105,7 +101,7 @@ void getPid(int fd ,int _pid)
 	if(ioctl(fd,KBUF_IOCX_IO_PID,&pidInfo)<0) 
 	{perror("ioctl: KBUF_IOCX_IO_PID");}
 
-	printf("\npid information: ' %d ' ' %s '\n", pidInfo.pid,pidInfo.buf);
+	printf("\nprocess information: ' %d ' ' %s '\n", pidInfo.pid,pidInfo.buf);
 }
 
 void getIrq(int fd)

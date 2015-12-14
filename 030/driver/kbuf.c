@@ -291,16 +291,16 @@ static unsigned int chkbuf_poll(struct file *pfile, poll_table *wait)
 {//???
 	unsigned int mask = 0;
 
-	mutex_lock_interruptible(&mutex); //???
+//	mutex_lock_interruptible(&mutex); //???
 
 	poll_wait(pfile, &wq, wait);
-//sleep_on_timeout( &qwait, pause );
+	//sleep_on_timeout( &qwait, pause );
 	if (pfile->f_pos != posW)
 		mask |= POLLIN | POLLRDNORM; //чтение 
 
 	//обработать конец файла. вернуть POLLHUP	
 
-	mutex_unlock(&mutex);
+//	mutex_unlock(&mutex);
 	return mask;
 }
 

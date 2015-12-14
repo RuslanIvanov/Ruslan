@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
+
 #include "driver/ioctl_kbuf.h"
 
 int  fd;
@@ -19,6 +21,7 @@ bool bOut = false;
 void getStatictic(int);
 void getPid(int,int);
 void getIrq(int);
+void testPoll();
 
 PID_INFO pidInfo;
 STATISTIC_RW statistic;
@@ -47,17 +50,6 @@ int main(int argc,char* argv[], char** env)
 	    sprintf(buf,"It is number string %d\n", countStr++);
 	    rez = write(fd,buf,strlen(buf)+1);
 
-	   /* int N=9;
-	    for(int i=0;i<N;i++)
-	    {
-		if(i==0)
-			buf[i]=0;
-		else if(i==(N-1)) 
-			buf[i]=0;
-		else buf[i]=i;
-   	    }
-	    rez = write(fd,buf,N);*/
-
 	    if(rez==-1) {printf("Error write %s\n",filename); bOut=true; break;}
 	    printf("\nwrited %d bytes",rez);
 
@@ -82,7 +74,43 @@ int main(int argc,char* argv[], char** env)
 
 	close(fd);
 
+	testPoll();
+
 	return 0;
+}
+
+void testPoll()
+{
+	struct pollfd fds;
+
+	int  fd = open(&filename[0],O_RDONLY); 
+	if(fd==-1) {perror("open for poll"); return ;}
+
+	fds.fd=fd;
+	fds.events = POLLIN;
+
+	printf("\ntest poll...\n");
+	for(int ipoll=0;ipoll<50;ipoll++)
+	{
+		int ready = poll(&fds, 1, 5000);
+        	if(ready==0){perror("poll"); continue; }
+        	if(ready<0){perror("poll"); break; }
+
+        	int rez=0;
+        	if( fds.revents & POLLIN )
+        	{
+                	char bufr[BUFSIZ];
+                	rez=read(fd,bufr,BUFSIZ);
+			if(rez<0) {perror("readpoll"); return;}
+
+			printf("\nreadpoll %d bytes: \n",rez);
+                	for(int i = 0;i<rez;i++)
+                		printf("%c",bufr[i]);
+                	printf("\n");
+		}
+	}
+
+	close(fd);
 }
 
 void getStatictic(int fd)

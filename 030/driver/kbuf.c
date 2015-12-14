@@ -10,6 +10,7 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/wait.h>
+#include <linux/poll.h>
 
 #include "ioctl_kbuf.h"
 
@@ -285,28 +286,23 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 	return rez; // was writted
 }
 
-/*
-static unsigned int scull_p_poll(struct file *filp, poll_table *wait)
-{
-struct scull_pipe *dev = filp->private_data;
-unsigned int mask = 0;
 
-// Этот буфер является круговым; он считается полным
-// если "wp" находится прямо позади "rp" и пустым, если
-// они равны.
+static unsigned int chkbuf_poll(struct file *pfile, poll_table *wait)
+{//???
+	unsigned int mask = 0;
 
-down(&dev->sem);
-poll_wait(filp, &dev->inq, wait);
-poll_wait(filp, &dev->outq, wait);
-if (dev->rp != dev->wp)
-mask |= POLLIN | POLLRDNORM; // читаемо 
-if (spacefree(dev))
-mask |= POLLOUT | POLLWRNORM; // записываемо 
-up(&dev->sem);
-return mask;
+	mutex_lock_interruptible(&mutex); //???
+
+	poll_wait(pfile, &wq, wait);
+//sleep_on_timeout( &qwait, pause );
+	if (pfile->f_pos != posW)
+		mask |= POLLIN | POLLRDNORM; //чтение 
+
+	//обработать конец файла. вернуть POLLHUP	
+
+	mutex_unlock(&mutex);
+	return mask;
 }
-
-*/
 
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
@@ -356,6 +352,7 @@ static const struct file_operations chkbuf_fops = {
 	.open = chkbuf_open,
 	.release = chkbuf_release,
 	.llseek = chkbuf_lseek,
+	.poll =	chkbuf_poll,
 	.unlocked_ioctl = chkbuf_ioctl,
 };
 

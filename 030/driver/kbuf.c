@@ -42,8 +42,8 @@ struct STATISTIC_RW statistic;
 
 };
 
-struct chkbuf_dev mychdev;
-mychdev.size = KBUF_BUF;*/
+struct chkbuf_dev chkbufdev;
+chkbufdev.size = KBUF_BUF;*/
 
 unsigned char *pbuf=0;
 
@@ -288,19 +288,21 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
 
 
 static unsigned int chkbuf_poll(struct file *pfile, poll_table *wait)
-{//???
+{
 	unsigned int mask = 0;
-
-//	mutex_lock_interruptible(&mutex); //???
 
 	poll_wait(pfile, &wq, wait);
 	//sleep_on_timeout( &qwait, pause );
+
+	mutex_lock_interruptible(&mutex);
+
 	if (pfile->f_pos != posW)
 		mask |= POLLIN | POLLRDNORM; //чтение 
 
+	mutex_unlock(&mutex);
+
 	//обработать конец файла. вернуть POLLHUP	
 
-//	mutex_unlock(&mutex);
 	return mask;
 }
 
@@ -312,7 +314,7 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 	rez=0; dev=0;
 
-	if(dev_open > 0 && countDev==0)//(COUNT_DEVICES-1)
+	if(dev_open > 0 && countDev==0)
 	{
 		printk(KERN_ERR "Error: /dev/chkbuf already open!\n");
 		return -EINVAL;
@@ -325,6 +327,19 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 	}
 
 	printk(KERN_INFO " chkbuf_open: count devices %d ('=0' - for one, '>0' - for more)\n",countDev);
+
+	//для множественного открытия устр:
+	//а не в init
+	//pfile->private_data = kmalloc(KBUF_BUF,GFP_KERNEL); // д.б. не только буффер приватный, но и указатель на смещение
+	//if( NULL == pfile->private_data )
+	//{ 
+	//	printk(KERN_ERR "Error:kmalloc for private_data!\n");
+	//	return -ENOMEM; 
+	//}
+	//strcpy( pfile->private_data, "dynamic: not initialized!" );  // динамический буфер 
+
+	//struct chkbuf_dev *dev = inode->i_bdev->bd_disk->private_data;
+	//pfile->private_data = dev;
 
 	return 0;
 }
@@ -340,10 +355,24 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
 
 	if(dev_open==0)
 	{
+		printk(KERN_INFO " chkbuf_release close all devices\n");
 	}
-
+	//kfree(pfile->private_data ); 
 	return 0;
 }
+
+/*
+static char* get_buffer( struct file *f ) 
+{ 
+	static char static_buf[ LEN_MSG + 1 ] = "static: not initialized!"; // статический буфер : 
+	switch( mode ) 
+	{ 
+      	case 0: case 1: default: 
+        	return static_buf; 
+      	case 2: 
+         return (char*)f->private_data; 
+   	} 
+}*/ 
 
 static const struct file_operations chkbuf_fops = {
 	.owner  = THIS_MODULE,

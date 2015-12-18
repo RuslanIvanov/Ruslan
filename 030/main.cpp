@@ -25,6 +25,7 @@ void testPoll();
 
 PID_INFO pidInfo;
 STATISTIC_RW statistic;
+int numTest=0;
 
 int main(int argc,char* argv[], char** env)
 {
@@ -36,13 +37,29 @@ int main(int argc,char* argv[], char** env)
 
 	printf("\nfile ' %s ', exit ' Ctrl+C '\n",&filename[0]);
 
-	fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
+	for(;numTest<2;numTest++)
+	{
+
+	if(numTest==0)
+	{
+		printf("\ntest read-write & O_NONBLOCK:");
+		fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
+	}
+
+	if(numTest==1)
+	{
+		printf("\ntest read-write:");
+                fd = open(&filename[0],O_RDWR); 
+	}
+
 //	fd = open(&filename[0],O_RDONLY); 
 //	fd = open(&filename[0],O_WRONLY); 
+
 	if(fd==-1) {printf("\nError open %s\n",filename); return 0;}
 
 	int countStr=0;
-	while(bOut==false)
+	//while(bOut==false)
+	while(countStr<8)
 	{
 	    sleep(1);
 	    int rez=0;
@@ -53,7 +70,8 @@ int main(int argc,char* argv[], char** env)
 	    if(rez==-1) {printf("Error write %s\n",filename); bOut=true; break;}
 	    printf("\nwrited %d bytes",rez);
 
-	    if(lseek(fd,0,SEEK_SET)<0) 
+	    printf("\nLSEEK: set pos %d",(numTest)*10);
+	    if(lseek(fd,(numTest)*10,SEEK_SET)<0) 
 	    {perror("lseek"); bOut=true; break;}
 		char tmp[70];
 		rez = read(fd,tmp,70);
@@ -73,6 +91,9 @@ int main(int argc,char* argv[], char** env)
 	getIrq(fd);
 
 	close(fd);
+	}
+
+	sleep(1);
 
 	testPoll();
 
@@ -90,9 +111,9 @@ void testPoll()
 	fds.events = POLLIN;
 
 	printf("\ntest poll...\n");
-	for(int ipoll=0;ipoll<50;ipoll++)
+	for(int ipoll=0;ipoll<6;ipoll++)
 	{
-		int ready = poll(&fds, 1, 5000);
+		int ready = poll(&fds, 1, 500);
         	if(ready==0){perror("poll"); continue; }
         	if(ready<0){perror("poll"); break; }
 

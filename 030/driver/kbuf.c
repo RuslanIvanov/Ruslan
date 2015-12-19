@@ -21,7 +21,7 @@ module_param(countDev,int,0);
 unsigned int major = 701;
 unsigned int minor = 0;
 const char name[6] = "kbuf";
-struct cdev * pcdev;
+
 dev_t first_node;
 int dev_open = 0;
 
@@ -31,37 +31,28 @@ int COUNT_DEVICES  = 1;
 
 struct STATISTIC_RW statistic;
 
-/*struct chkbuf_dev
+struct chkbuf_dev
 {
     	int size;
-    	char name[6];
-    	struct semaphore sem;
+	unsigned char buf[KBUF_BUF];
+    	struct mutex mutex;
     	struct cdev cdev;
 	loff_t posW;
 	loff_t posR;
-
 };
 
-struct chkbuf_dev chkbufdev;
-chkbufdev.size = KBUF_BUF;*/
-
-unsigned char *pbuf=0;
+struct chkbuf_dev* pcdev;
 
 struct PID_INFO pid_info;
 
 struct pid *pid_struct;
 struct task_struct *ptask;
 
-loff_t posW;
-//loff_t posR;
-
 unsigned int numIrq;
-int dev;
+int dev;//
 
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static int flag = 0;
-
-struct mutex mutex;     
 
 static irqreturn_t inter_handler ( int irq, void *dev )
 {
@@ -158,29 +149,30 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
 }
 
-static loff_t chkbuf_lseek (struct file* filp, loff_t off,int whence)
+static loff_t chkbuf_lseek (struct file* pfile, loff_t off,int whence)
 {
-
+	struct chkbuf_dev *dev;
 	loff_t newpos;
+
 	newpos = 0;
+	dev = pfile->private_data; 
 
 	switch(whence)
 	{
-	case 0: /* SEEK_SET */
-		newpos = off;
-	break;
-	case 1: /* SEEK_CUR */
-		newpos = filp->f_pos + off;
-	break;
-	case 2: /* SEEK_END */
-		//newpos = dev->size + off;
-		newpos=KBUF_BUF+off;
-	default: /* не может произойти */
-	return -EINVAL;
+		case 0: /* SEEK_SET */
+			newpos = off;
+		break;
+		case 1: /* SEEK_CUR */
+			newpos = pfile->f_pos + off;
+		break;
+		case 2: /* SEEK_END */
+			newpos=dev->size+off;
+		default: /* не может произойти */
+		return -EINVAL;
 	}
 
 	if (newpos < 0) return -EINVAL;
-		filp->f_pos = newpos;
+		pfile->f_pos = newpos;
 	return newpos;
 }
 
@@ -188,49 +180,52 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 {
 	int rez;
 	int pos;
+	struct chkbuf_dev *dev;
 
-	if((pfile->f_flags & O_NONBLOCK)!=O_NONBLOCK)
+	dev = pfile->private_data; 
+
+	if((pfile->f_flags & O_ACCMODE)!=O_NONBLOCK)
 	{
 		wait_event_interruptible(wq, flag != 0);
         	flag = 0;
 	}
 
-	mutex_lock_interruptible(&mutex);
+	mutex_lock_interruptible(&dev->mutex);
 
 	pos = *poff; //file->f_pos==*poff
 
 	printk(KERN_INFO " chkbuf_read %s, pos %d\n",name, pos);
 
-	if(pos >= KBUF_BUF) 
+	if(pos >= dev->size) 
 	{
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
 		return EOF;
 	}
 
-	if(n>posW)
+	if(n>dev->posW)
 	{
-		n=posW;
+		n=dev->posW;
 	}
 
-	if(pos>=posW) 
+	if(pos>=dev->posW) 
 	{
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
 		return EOF;
 	}
 
-	rez = n - copy_to_user((char __user *)pbufu, (char*)&pbuf[pos], n);
+	rez = n - copy_to_user((char __user *)pbufu, (char*)&dev->buf[pos], n);
         if(rez==0)
         {
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
                	printk(KERN_ERR " chkbuf_read: error read buf!\n");
                	return -EFAULT;
 	}
 
 	*poff += rez;
-	//posR=*poff;
+
 	statistic.cr++;
 
-	mutex_unlock(&mutex);
+	mutex_unlock(&dev->mutex);
 
 	printk(KERN_INFO " chkbuf_read current pos %d\n",(int)(*poff));
 
@@ -239,8 +234,12 @@ static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, l
 
 static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_t n , loff_t * poff)
 {
-	int pos; int rez; int correctN;
-	pos = 0;  correctN=0;
+	int pos; 
+	int rez;
+ 	struct chkbuf_dev *dev;
+
+	pos = 0;
+	dev = pfile->private_data; 
 
 	if((pfile->f_flags & O_ACCMODE)!=O_NONBLOCK)
 	{
@@ -248,58 +247,61 @@ static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_
         	wake_up_interruptible(&wq);
 	}
 
-	mutex_lock_interruptible(&mutex);
+	mutex_lock_interruptible(&dev->mutex);
 
 	pos =*poff;
 	printk(KERN_INFO" chkbuf_write %s, pos %d\n",name, pos);
 
-	if (pos >= KBUF_BUF) 
+	if (pos >= dev->size) 
 	{
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
 		return EOF;
 	}
 
-	if(n>KBUF_BUF)
+	if(n > dev->size)
 	{
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
 		n = KBUF_BUF;
-		printk(KERN_ERR" chkbuf_write: error (n>KBUF_BUF)!\n");
+		printk(KERN_ERR" chkbuf_write: error (n > dev->size)!\n");
 
 	}
 
-	rez = n - copy_from_user((char*)&pbuf[pos],(int __user *)pbufu,n);
+	rez = n - copy_from_user((char*)&dev->buf[pos],(int __user *)pbufu,n);
 	if(rez==0)
 	{
-		mutex_unlock(&mutex);
+		mutex_unlock(&dev->mutex);
 		printk(KERN_ERR" chkbuf_write: error write buf!\n");
 		return -EINVAL;
 	}
 
 	*poff += rez;
-	posW = *poff;
+	dev->posW = *poff;
+
 	statistic.cw++;
 
-	mutex_unlock(&mutex);
+	mutex_unlock(&dev->mutex);
 
 	printk(KERN_INFO " chkbuf_write current pos %d\n",(int)(*poff));
 
 	return rez; // was writted
 }
 
-
 static unsigned int chkbuf_poll(struct file *pfile, poll_table *wait)
 {
-	unsigned int mask = 0;
+	unsigned int mask;
+	struct chkbuf_dev *dev;
+
+	dev = pfile->private_data; 
+	mask = 0;
 
 	poll_wait(pfile, &wq, wait);
-	//sleep_on_timeout( &qwait, pause );
 
-	mutex_lock_interruptible(&mutex);
+	mutex_lock_interruptible(&dev->mutex);
 
-	if (pfile->f_pos != posW)
+	if (pfile->f_pos != dev->posW)
 		mask |= POLLIN | POLLRDNORM; //чтение 
 
-	mutex_unlock(&mutex);
+	mutex_unlock(&dev->mutex);
 
 	//обработать конец файла. вернуть POLLHUP	
 
@@ -308,12 +310,9 @@ static unsigned int chkbuf_poll(struct file *pfile, poll_table *wait)
 
 static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
-	int rez; 
+        struct  chkbuf_dev  *dev;
 
-	printk(KERN_INFO " chkbuf_open %s\n",name);
-
-	rez=0; dev=0;
-
+       
 	if(dev_open > 0 && countDev==0)
 	{
 		printk(KERN_ERR "Error: /dev/chkbuf already open!\n");
@@ -322,31 +321,30 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 	if(dev_open == 0 || countDev>0)
 	{
-		pfile->f_pos=0;
 		dev_open++;
 	}
 
+	dev = container_of(pinode->i_cdev,struct chkbuf_dev,cdev);
+
+        pfile->private_data = dev;
+
+	pfile->f_pos=0;
+
 	printk(KERN_INFO " chkbuf_open: count devices %d ('=0' - for one, '>0' - for more)\n",countDev);
 
-	//для множественного открытия устр:
-	//а не в init
-	//pfile->private_data = kmalloc(KBUF_BUF,GFP_KERNEL); // д.б. не только буффер приватный, но и указатель на смещение
-	//if( NULL == pfile->private_data )
-	//{ 
-	//	printk(KERN_ERR "Error:kmalloc for private_data!\n");
-	//	return -ENOMEM; 
-	//}
-	//strcpy( pfile->private_data, "dynamic: not initialized!" );  // динамический буфер 
-
-	//struct chkbuf_dev *dev = inode->i_bdev->bd_disk->private_data;
-	//pfile->private_data = dev;
-
-	return 0;
+        return 0;
 }
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
 	printk(KERN_INFO " chkbuf_release %s\n",name);
+
+	if((pfile->f_flags & O_ACCMODE)!=O_NONBLOCK)
+        {
+                flag = 1;
+                wake_up_interruptible(&wq);
+        }
+
 
 	if(dev_open > 0)
 	{
@@ -357,22 +355,9 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
 	{
 		printk(KERN_INFO " chkbuf_release close all devices\n");
 	}
-	//kfree(pfile->private_data ); 
+
 	return 0;
 }
-
-/*
-static char* get_buffer( struct file *f ) 
-{ 
-	static char static_buf[ LEN_MSG + 1 ] = "static: not initialized!"; // статический буфер : 
-	switch( mode ) 
-	{ 
-      	case 0: case 1: default: 
-        	return static_buf; 
-      	case 2: 
-         return (char*)f->private_data; 
-   	} 
-}*/ 
 
 static const struct file_operations chkbuf_fops = {
 	.owner  = THIS_MODULE,
@@ -390,24 +375,9 @@ static  int chkbuf_init(void)
     	int rez;
     	printk(KERN_INFO " start kbuf module\n");
 
-    	//Старый способ регистрации
-    	/*
-    	rez  = register_chrdev(major, name ,&chkbuf_fops);
-
-    	if(rez!=0)
-    	{
-		printk(KERN_ALERT"Error register_chdev for %s:",name);
-		if(rez == EINVAL)
-	            printk(KERN_ALERT"The specified number is not valid (> MAX_CHRDEV)");
-
-		if(rez == EBUSY)
-		    printk(KERN_ALERT"The major number is busy ");
-	
-		return rez;
-	}*/
-	
 	COUNT_DEVICES = countDev+1;
-	printk(KERN_INFO "COUNT_DEVICES %d\n",COUNT_DEVICES);
+	printk(KERN_INFO " COUNT_DEVICES %d\n",COUNT_DEVICES);
+
 	//новый способ регисtрации
 	first_node = MKDEV(major,minor);
 	rez = register_chrdev_region(first_node,COUNT_DEVICES,name);// получение номера(ов) символьного устройства
@@ -418,26 +388,32 @@ static  int chkbuf_init(void)
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		return rez;
 	}
-    
-	pcdev = cdev_alloc();
 
-	cdev_init(pcdev,&chkbuf_fops);
-	pcdev->owner=THIS_MODULE;
-	pcdev->ops=&chkbuf_fops;
-	rez = cdev_add(pcdev, first_node,COUNT_DEVICES);
+	//pcdev = cdev_alloc();
+
+	pcdev = kmalloc(sizeof (struct chkbuf_dev), GFP_KERNEL);
+
+	if(pcdev == NULL)
+        {
+               printk(KERN_ERR " Error kmalloc for /dev/chkbuf\n");
+               return -ENOMEM;
+        }
+
+        pcdev->size = KBUF_BUF;
+        mutex_init(&(pcdev->mutex));  
+        pcdev->posW=0;
+        pcdev->posR=0;
+
+	cdev_init(&pcdev->cdev,&chkbuf_fops);
+	pcdev->cdev.owner=THIS_MODULE;
+	pcdev->cdev.ops=&chkbuf_fops;
+	rez = cdev_add(&pcdev->cdev, first_node,COUNT_DEVICES);
 
 	if ( rez < 0 )
 	{
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		return rez;
 	}
-
-	pbuf = kmalloc(KBUF_BUF,GFP_KERNEL);
-        if(pbuf == NULL)
-        { 
-               printk(KERN_ERR " Error kmalloc for /dev/chkbuf\n");
-               return -ENOMEM;
-        }
 
 	dev=1982;
 	rez = request_irq(19, inter_handler, IRQF_SHARED, "IRQ_KBUF", &dev);
@@ -447,24 +423,19 @@ static  int chkbuf_init(void)
 		return rez;
 	}
 
-	mutex_init(&mutex);
-
-	posW=0;
     	return 0;
 }
 
 static void chkbuf_exit(void)
 {
 	unregister_chrdev_region(first_node, COUNT_DEVICES);
-	cdev_del(pcdev);
-	//unregister_chrdev(major, name);
+	cdev_del(&pcdev->cdev);
 
-	if(pbuf)
+	if(pcdev)
         {
-                kfree(pbuf);
-                pbuf=0;
+                kfree(pcdev);
+                pcdev=0;
 		printk(KERN_INFO " kfree for kbuf)\n");
-
         }
 
 	free_irq(19, &dev);

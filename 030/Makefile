@@ -1,13 +1,10 @@
-#цель: зависимости
-#[tab] команда
+all: test
 
-all: main
-
-main: main.o
-	g++ main.o -o main  -lpthread
+test: main.o
+	g++ main.o -o test  -lpthread
 
 main.o: main.cpp
 	g++ -c main.cpp
 
 clean:
-	rm -rf *.o main
+	rm -rf *.o test

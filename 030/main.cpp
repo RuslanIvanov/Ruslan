@@ -11,7 +11,12 @@
 #include <sys/ioctl.h>
 #include <sys/poll.h>
 
-#include "driver/ioctl_kbuf.h"
+//#define ALTER
+#ifdef ALTER
+	#include "alternativeDriver/ioctl_kbuf.h"
+#else
+	#include "driver/ioctl_kbuf.h"
+#endif
 
 int  fd;
 char filename[BUFSIZ];
@@ -40,13 +45,13 @@ int main(int argc,char* argv[], char** env)
 	for(;numTest<2;numTest++)
 	{
 
-	if(numTest==0)
+	if(numTest==1)
 	{
 		printf("\ntest read-write & O_NONBLOCK:");
 		fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
 	}
 
-	if(numTest==1)
+	if(numTest==0)
 	{
 		printf("\ntest read-write:");
                 fd = open(&filename[0],O_RDWR); 

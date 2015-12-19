@@ -34,7 +34,8 @@ struct STATISTIC_RW statistic;
 struct chkbuf_dev
 {
     	int size;
-	unsigned char buf[KBUF_BUF];
+	//unsigned char buf[KBUF_BUF];
+	unsigned char *buf;
     	struct mutex mutex;
     	struct cdev cdev;
 	loff_t posW;
@@ -312,7 +313,6 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
         struct  chkbuf_dev  *dev;
 
-       
 	if(dev_open > 0 && countDev==0)
 	{
 		printk(KERN_ERR "Error: /dev/chkbuf already open!\n");
@@ -330,6 +330,15 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 	pfile->f_pos=0;
 
+	dev->buf = kmalloc(KBUF_BUF,GFP_KERNEL);
+        if(dev->buf == NULL)
+        {
+               printk(KERN_ERR " Error kmalloc for /dev/chkbuf\n");
+               return -ENOMEM;
+        }
+
+	dev->size = KBUF_BUF;
+
 	printk(KERN_INFO " chkbuf_open: count devices %d ('=0' - for one, '>0' - for more)\n",countDev);
 
         return 0;
@@ -337,6 +346,9 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
+	struct chkbuf_dev *dev;
+        dev = pfile->private_data;
+
 	printk(KERN_INFO " chkbuf_release %s\n",name);
 
 	if((pfile->f_flags & O_ACCMODE)!=O_NONBLOCK)
@@ -344,7 +356,6 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
                 flag = 1;
                 wake_up_interruptible(&wq);
         }
-
 
 	if(dev_open > 0)
 	{
@@ -355,6 +366,14 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
 	{
 		printk(KERN_INFO " chkbuf_release close all devices\n");
 	}
+
+	if(dev->buf)
+        {
+                kfree(dev->buf);
+                dev->buf=0;
+                printk(KERN_INFO " kfree for dev->buf)\n");
+        }
+
 
 	return 0;
 }
@@ -399,7 +418,7 @@ static  int chkbuf_init(void)
                return -ENOMEM;
         }
 
-        pcdev->size = KBUF_BUF;
+        pcdev->size = 0;// KBUF_BUF
         mutex_init(&(pcdev->mutex));  
         pcdev->posW=0;
         pcdev->posR=0;

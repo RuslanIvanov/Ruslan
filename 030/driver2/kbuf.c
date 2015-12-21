@@ -34,8 +34,7 @@ struct STATISTIC_RW statistic;
 struct chkbuf_dev
 {
     	int size;
-	//unsigned char buf[KBUF_BUF];
-	unsigned char *buf;
+	unsigned char buf[KBUF_BUF];
     	struct mutex mutex;
     	struct cdev cdev;
 	loff_t posW;
@@ -67,6 +66,7 @@ static irqreturn_t inter_handler ( int irq, void *dev )
 
 	return IRQ_NONE;
 }
+
 
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
@@ -312,6 +312,7 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 {
         struct  chkbuf_dev  *dev;
 
+ 
 	if(dev_open > 0 && countDev==0)
 	{
 		printk(KERN_ERR "Error: /dev/chkbuf already open!\n");
@@ -329,15 +330,6 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 	pfile->f_pos=0;
 
-	dev->buf = kmalloc(KBUF_BUF,GFP_KERNEL);
-        if(dev->buf == NULL)
-        {
-               printk(KERN_ERR " Error kmalloc for /dev/chkbuf\n");
-               return -ENOMEM;
-        }
-
-	dev->size = KBUF_BUF;
-
 	printk(KERN_INFO " chkbuf_open: count devices %d ('=0' - for one, '>0' - for more)\n",countDev);
 
         return 0;
@@ -345,7 +337,7 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
-	struct chkbuf_dev *dev;
+        struct chkbuf_dev *dev;
         dev = pfile->private_data;
 
 	printk(KERN_INFO " chkbuf_release %s\n",name);
@@ -356,24 +348,18 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
                 wake_up_interruptible(&wq);
         }
 
+
 	if(dev_open > 0)
 	{
 		dev_open--;
 	}
 
+	dev->posW=0;
+
 	if(dev_open==0)
 	{
 		printk(KERN_INFO " chkbuf_release close all devices\n");
 	}
-
-	dev->posW=0;
-
-	if(dev->buf)
-        {
-                kfree(dev->buf);
-                dev->buf=0;
-                printk(KERN_INFO " kfree for dev->buf)\n");
-        }
 
 	return 0;
 }
@@ -418,8 +404,8 @@ static  int chkbuf_init(void)
                return -ENOMEM;
         }
 
-        pcdev->size = 0;// KBUF_BUF
-        mutex_init(&(pcdev->mutex));
+        pcdev->size = KBUF_BUF;
+        mutex_init(&(pcdev->mutex));  
         pcdev->posW=0;
         pcdev->posR=0;
 

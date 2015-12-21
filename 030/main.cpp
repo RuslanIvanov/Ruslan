@@ -47,13 +47,13 @@ int main(int argc,char* argv[], char** env)
 
 	if(numTest==1)
 	{
-		printf("\ntest read-write & O_NONBLOCK:");
+		printf("\ntest read-write & O_NONBLOCK %s:",&filename[0]);
 		fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
 	}
 
 	if(numTest==0)
 	{
-		printf("\ntest read-write:");
+		printf("\ntest read-write %s:",&filename[0]);
                 fd = open(&filename[0],O_RDWR); 
 	}
 
@@ -93,7 +93,7 @@ int main(int argc,char* argv[], char** env)
 
 	if(numTest==1)
 	{
-		printf("\nTest poll, write msg...");
+		printf("\nTest poll, write msg: 'It is test 'poll' / 'select'\n");
 		if(lseek(fd,0,SEEK_SET)<0) 
 		{perror("lseek");} 
 		char tmp[BUFSIZ];
@@ -107,7 +107,9 @@ int main(int argc,char* argv[], char** env)
 	getPid(fd,getpid());
 	getIrq(fd);
 
-	close(fd);
+        close(fd);
+	printf("\nClose %s.\n",&filename[0]);
+
 	}
 
 	sleep(1);
@@ -121,6 +123,7 @@ void testPoll()
 {
 	struct pollfd fds;
 
+	printf("\ntest read with poll %s:",&filename[0]);
 	int  fd = open(&filename[0],O_RDONLY); 
 	if(fd==-1) {perror("open for poll"); return ;}
 

@@ -68,7 +68,6 @@ static irqreturn_t inter_handler ( int irq, void *dev )
 	return IRQ_NONE;
 }
 
-
 static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 {
 	int err;
@@ -374,7 +373,6 @@ static int chkbuf_release(struct inode *pinode, struct file * pfile)
                 printk(KERN_INFO " kfree for dev->buf)\n");
         }
 
-
 	return 0;
 }
 
@@ -419,7 +417,7 @@ static  int chkbuf_init(void)
         }
 
         pcdev->size = 0;// KBUF_BUF
-        mutex_init(&(pcdev->mutex));  
+        mutex_init(&(pcdev->mutex));
         pcdev->posW=0;
         pcdev->posR=0;
 

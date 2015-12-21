@@ -57,8 +57,8 @@ int main(int argc,char* argv[], char** env)
                 fd = open(&filename[0],O_RDWR); 
 	}
 
-//	fd = open(&filename[0],O_RDONLY); 
-//	fd = open(&filename[0],O_WRONLY); 
+//	fd = open(&filename[0],O_RDONLY);
+//	fd = open(&filename[0],O_WRONLY);
 
 	if(fd==-1) {printf("\nError open %s\n",filename); return 0;}
 
@@ -89,6 +89,18 @@ int main(int argc,char* argv[], char** env)
 		for(int i = 0;i<rez;i++)
 			printf("%c",tmp[i]);
 		 printf("\n");
+	}
+
+	if(numTest==1)
+	{
+		printf("\nTest poll, write msg...");
+		if(lseek(fd,0,SEEK_SET)<0) 
+		{perror("lseek");} 
+		char tmp[BUFSIZ];
+		sprintf(tmp,"It is test 'poll' / 'select'\n");
+         	int rez = write(fd,tmp,strlen(tmp)+1);
+		if(rez==-1) {printf("Error test 'poll' / 'selsct'\n");}
+
 	}
 
 	getStatictic(fd);

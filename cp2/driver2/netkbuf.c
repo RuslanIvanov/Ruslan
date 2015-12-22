@@ -91,8 +91,14 @@ int net_stop (struct net_device *dev)
 }
 
 netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
-{
-	printk(KERN_INFO " net_start_xmit\n");
+{	
+	
+	struct netkbuf_dev *priv; 
+
+	priv = netdev_priv(dev);
+	priv->buf[0] =  skb->protocol;
+
+	printk(KERN_INFO " net_start_xmit, %d, len_data %d\n",priv->buf[0],skb->data_len);
 
 	//Returns NETDEV_TX_OK
 
@@ -134,7 +140,7 @@ static const struct net_device_ops net_fops = {
 	.ndo_stop = net_stop,
 	.ndo_start_xmit = net_start_xmit,
 	.ndo_tx_timeout = net_tx_timeout,
-	.ndo_get_stats = net_get_stats,
+	//.ndo_get_stats = net_get_stats,
 
 };
 
@@ -228,21 +234,6 @@ static void chkbuf_exit(void)
 	cdev_del(pcdev);
 	unregister_netdev(pnetdev);
 	free_netdev(pnetdev);
-	
-	/*if(pnetdev)
-        {
-                kfree(pnetdev);
-                pnetdev=0;
-		printk(KERN_INFO " kfree for pnetdev)\n");
-        }*/
-
-/*
-	if(pcdev)
-        {
-                kfree(pcdev);
-                pcdev=0;
-		printk(KERN_INFO " kfree for pcdev)\n");
-        }*/
 
 	printk(KERN_INFO " goodbye, kbuf module\n");
 }

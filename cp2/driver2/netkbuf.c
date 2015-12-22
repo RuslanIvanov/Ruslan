@@ -24,9 +24,6 @@ dev_t first_node;
 
 int COUNT_DEVICES  = 1;
 #define KBUF_BUF 200 
-#define EOF 0
-
-//unsigned char *pbuf;
 
 struct STATISTIC_RW statistic;
 
@@ -38,7 +35,6 @@ struct netkbuf_dev
 
 struct net_device* pnetdev;
 struct cdev * pcdev;
-//struct netkbuf_dev* pnetdev;
 
 static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
@@ -66,31 +62,36 @@ static int chkbuf_open(struct inode *pinode, struct file * pfile)
 
 static int chkbuf_release(struct inode *pinode, struct file * pfile)
 {
+	printk(KERN_INFO " chkbuf_release\n");
        	return 0;
 }
 
 static int  net_init(struct net_device *dev)
 {
+	printk(KERN_INFO " net_init\n");
 	return 0;
 }
 
 void net_uninit (struct net_device *dev)
 {
-	
+	printk(KERN_INFO " net_uninit\n");
 }
 
 int  net_open (struct net_device *dev)
 {
+	printk(KERN_INFO " net_open\n");	
 	return 0;
 }
 
 int net_stop (struct net_device *dev)
 {
+	printk(KERN_INFO " net_stop\n");
 	return 0;
 }
 
 netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
 {
+	printk(KERN_INFO " net_start_xmit\n");
 	return 0;
 }
 
@@ -126,6 +127,8 @@ static void netdevice_init (struct net_device * dev)
 //	dev->watchdoc_timeo = timeout;
 	dev->netdev_ops = &net_fops;
 	dev->flags |= IFF_NOARP; 
+
+	printk(KERN_INFO " netdevice_init\n");
 }
 
 static struct net_device* netdevice_create(const char* name)
@@ -141,7 +144,7 @@ static  int chkbuf_init(void)
     	int rez;
     	printk(KERN_INFO " start netkbuf module\n");
 
-    	COUNT_DEVICES = countDev+1;
+    	//COUNT_DEVICES = countDev+1;
 	printk(KERN_INFO "COUNT_DEVICES %d\n",COUNT_DEVICES);
 	
 	first_node = MKDEV(major,minor);
@@ -173,7 +176,7 @@ static  int chkbuf_init(void)
 	if(pnetdev == NULL)
         { 
                printk(KERN_ERR " Error kmalloc for netdevice_create\n");
-		unregister_chrdev_region(first_node, COUNT_DEVICES);
+	       unregister_chrdev_region(first_node, COUNT_DEVICES);
 	       cdev_del(pcdev);
                return -ENOMEM;
         }
@@ -185,8 +188,9 @@ static  int chkbuf_init(void)
 		printk(KERN_ERR " Error register_netdev\n");
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		cdev_del(pcdev);
-		
-		if(pnetdev){kfree(pnetdev);pnetdev=0;}
+		free_netdev(pnetdev);
+
+//		if(pnetdev){kfree(pnetdev);pnetdev=0;}
 
 		return rez;
 	}
@@ -201,20 +205,20 @@ static void chkbuf_exit(void)
 	unregister_netdev(pnetdev);
 	free_netdev(pnetdev);
 	
-	if(pnetdev)
+	/*if(pnetdev)
         {
                 kfree(pnetdev);
                 pnetdev=0;
 		printk(KERN_INFO " kfree for pnetdev)\n");
-        }
+        }*/
 
-
+/*
 	if(pcdev)
         {
                 kfree(pcdev);
                 pcdev=0;
 		printk(KERN_INFO " kfree for pcdev)\n");
-        }
+        }*/
 
 	printk(KERN_INFO " goodbye, kbuf module\n");
 }

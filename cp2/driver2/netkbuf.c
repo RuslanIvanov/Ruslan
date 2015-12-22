@@ -35,6 +35,7 @@ struct netkbuf_dev
 
 struct net_device* pnetdev;
 struct cdev * pcdev;
+struct net_device_stats *statusNet;
 
 static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
@@ -92,7 +93,28 @@ int net_stop (struct net_device *dev)
 netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
 {
 	printk(KERN_INFO " net_start_xmit\n");
-	return 0;
+
+	//Returns NETDEV_TX_OK
+
+	return NETDEV_TX_BUSY;
+}
+
+void net_tx_timeout(struct net_device *dev)
+{
+	
+}
+
+struct net_device_stats* net_get_stats (struct net_device *dev)
+{
+	
+	statusNet->rx_packets=0;
+	statusNet->tx_packets=0;
+	statusNet->rx_bytes=0;
+	statusNet->tx_bytes=0;
+	statusNet->rx_errors=0;
+	statusNet->tx_errors=0;
+
+	return statusNet;
 }
 
 static const struct file_operations chkbuf_fops = {
@@ -111,6 +133,8 @@ static const struct net_device_ops net_fops = {
 	.ndo_open = net_open,
 	.ndo_stop = net_stop,
 	.ndo_start_xmit = net_start_xmit,
+	.ndo_tx_timeout = net_tx_timeout,
+	.ndo_get_stats = net_get_stats,
 
 };
 

@@ -185,6 +185,9 @@ static  int chkbuf_init(void)
 		printk(KERN_ERR " Error register_netdev\n");
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		cdev_del(pcdev);
+		
+		if(pnetdev){kfree(pnetdev);pnetdev=0;}
+
 		return rez;
 	}
 	
@@ -198,6 +201,13 @@ static void chkbuf_exit(void)
 	unregister_netdev(pnetdev);
 	free_netdev(pnetdev);
 	
+	if(pnetdev)
+        {
+                kfree(pnetdev);
+                pnetdev=0;
+		printk(KERN_INFO " kfree for pnetdev)\n");
+        }
+
 
 	if(pcdev)
         {

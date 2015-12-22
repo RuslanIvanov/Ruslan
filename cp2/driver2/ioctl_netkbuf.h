@@ -30,12 +30,6 @@ size получаются применением sizeof к аргументу da
 
 #define KBUF_IOC_MAXNR 1
 
-struct PID_INFO
-{
-	int pid;
-	char buf[200];
-};
-
 struct STATISTIC_RW
 {
         unsigned int cr;

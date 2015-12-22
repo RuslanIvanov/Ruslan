@@ -30,6 +30,7 @@ struct STATISTIC_RW statistic;
 struct netkbuf_dev
 {
 	unsigned char buf[KBUF_BUF];
+	int NDATA;
     	struct net_device *dev;
 };
 
@@ -43,7 +44,7 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 	int retval;
 	err = 0; retval = 0;
 
-	retval = -1;// 0 - команда  выпоненена, -1 или  <0 - команда не выполнена  - error
+	retval = -1;
 
 	printk(KERN_INFO" chkbuf: ioctl");
 
@@ -59,9 +60,9 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 
 	switch(cmd)
 	{
-       
-	case KBUF_IOCG_STATISTIC:
-	{
+
+		case KBUF_IOCG_STATISTIC:
+		{
 		int rez; rez=0;
 		printk(KERN_INFO "NETKBUF_IOCG_STATISTIC");
 		rez=copy_to_user((int __user *)arg, (char*)&statistic, sizeof(struct STATISTIC_RW));
@@ -75,11 +76,11 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 		printk(KERN_INFO  " statistic for device %s: [read %d, write %d]",name,statistic.cr,statistic.cw);
 
 	    	retval = 0;
-	}
-	break;
-	
-	default: 
-	return -ENOTTY;
+		}
+		break;
+
+		default:
+		return -ENOTTY;
 	}
 
 	return retval;
@@ -89,17 +90,28 @@ static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
 static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
 	int rez;
-	
-	rez = 0;
-	return rez; //was readed
+	struct netkbuf_dev *priv; 
+	priv = netdev_priv(pnetdev);
+
+	rez = n - copy_to_user((char __user *)pbufu, (char*)&priv->buf[0], priv->NDATA);
+        if(rez==0)
+        {
+                printk(KERN_ERR " chkbuf_read: error read buf!\n");
+                return -EFAULT;
+        }
+
+        *poff += rez;
+
+	//return rez; //was readed
+	return priv->NDATA;
 }
 
 static ssize_t chkbuf_write(struct file *pfile, const char __user * pbufu, size_t n , loff_t * poff)
 {
-	 
+
 	int rez;
 	rez=0;
- 	
+
 	return rez; // was writted
 }
 
@@ -140,19 +152,27 @@ int net_stop (struct net_device *dev)
 }
 
 netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
-{	
+{
 	int i;
 	struct netkbuf_dev *priv; 
 
-	i=0;
+	i=0; 
 	priv = netdev_priv(dev);
-	
-	printk(KERN_INFO " net_start_xmit, proto %d, len_data %d\n",skb->protocol,skb->data_len);
 
-	for(;i<20;i++)
-	{
-		priv->buf[i]=skb->data[i];
-	}
+	printk(KERN_INFO " net_start_xmit, proto [%d], len_data %d, len actual data %d\n",skb->protocol, skb->data_len, skb->len);
+
+	if(skb->len < KBUF_BUF)
+	{	
+		priv->NDATA=skb->len;
+		for(;i < skb->len;i++)
+		{
+			priv->buf[i]=skb->data[i];
+		}
+	}else priv->NDATA = 0; 
+
+	printk(" NDATA [%d]: ",priv->NDATA);
+	for (i=0 ; i<priv->NDATA; i++)
+		printk(" %02x",priv->buf[i]&0xff);
 
 	statistic.cr++;
 
@@ -163,7 +183,7 @@ netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
 
 void net_tx_timeout(struct net_device *dev)
 {
-	
+
 }
 
 struct net_device_stats* net_get_stats (struct net_device *dev)
@@ -204,7 +224,6 @@ static const struct net_device_ops net_fops = {
 static void netdevice_init (struct net_device * dev)
 {
 	int timeout; 
-	
 	struct netkbuf_dev *priv; 
 
 	priv = netdev_priv(dev);
@@ -231,9 +250,9 @@ static  int chkbuf_init(void)
     	int rez;
     	printk(KERN_INFO " start netkbuf module\n");
 
-    	//COUNT_DEVICES = countDev+1;
+    	COUNT_DEVICES = countDev+1;
 	printk(KERN_INFO "COUNT_DEVICES %d\n",COUNT_DEVICES);
-	
+
 	first_node = MKDEV(major,minor);
 	rez = register_chrdev_region(first_node,COUNT_DEVICES,name);// получение номера(ов) символьного устройства
 
@@ -256,12 +275,12 @@ static  int chkbuf_init(void)
 		unregister_chrdev_region(first_node, COUNT_DEVICES);
 		return rez;
 	}
-	
+
 	//net registration
-	
+
 	pnetdev = netdevice_create("netkbuf");
 	if(pnetdev == NULL)
-        { 
+        {
                printk(KERN_ERR " Error kmalloc for netdevice_create\n");
 	       unregister_chrdev_region(first_node, COUNT_DEVICES);
 	       cdev_del(pcdev);
@@ -277,11 +296,9 @@ static  int chkbuf_init(void)
 		cdev_del(pcdev);
 		free_netdev(pnetdev);
 
-//		if(pnetdev){kfree(pnetdev);pnetdev=0;}
-
 		return rez;
 	}
-	
+
     	return 0;
 }
 
@@ -292,7 +309,7 @@ static void chkbuf_exit(void)
 	unregister_netdev(pnetdev);
 	free_netdev(pnetdev);
 
-	printk(KERN_INFO " goodbye, kbuf module\n");
+	printk(KERN_INFO " goodbye, netkbuf module\n");
 }
 
 module_init(chkbuf_init);

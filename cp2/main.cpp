@@ -18,7 +18,6 @@ void getStatictic(int);
 
 STATISTIC_RW statistic;
 
-
 int main(int argc,char* argv[], char** env)
 {
 
@@ -26,12 +25,25 @@ int main(int argc,char* argv[], char** env)
 
 	printf("\nfile ' %s ', exit ' Ctrl+C '\n",&filename[0]);
 
-	fd = open(&filename[0],O_RDWR|O_NONBLOCK); 
+	fd = open(&filename[0],O_RDWR);
 
 	if(fd==-1) {printf("\nError open %s\n",filename); return 0;}
-	
-	getStatictic(fd);
-	
+
+	for(int t=0;t<10;t++)
+	{
+		sleep(1);
+		unsigned char tmp[600];
+		int rez = read(fd,tmp,100);
+    		if(rez==-1) {printf("\nError read %s\n",filename);}
+
+		printf("\nread %d bytes: \n",rez);
+		for(int i = 0;i<rez;i++)
+			printf("  %02x",tmp[i]);
+		printf("\n");
+
+		getStatictic(fd);
+	}
+
         close(fd);
 	printf("\nClose %s.\n",&filename[0]);
 

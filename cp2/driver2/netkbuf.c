@@ -37,6 +37,55 @@ struct net_device* pnetdev;
 struct cdev * pcdev;
 struct net_device_stats *statusNet;
 
+static long chkbuf_ioctl(struct file *file,unsigned int cmd,unsigned long arg)
+{
+	int err;
+	int retval;
+	err = 0; retval = 0;
+
+	retval = -1;// 0 - команда  выпоненена, -1 или  <0 - команда не выполнена  - error
+
+	printk(KERN_INFO" chkbuf: ioctl");
+
+	if (_IOC_TYPE(cmd) != KBUF_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > KBUF_IOC_MAXNR) return -ENOTTY;
+
+	if (_IOC_DIR(cmd) & _IOC_READ)
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+	else if (_IOC_DIR(cmd) & _IOC_WRITE)
+		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+
+	if (err) return -EFAULT;
+
+	switch(cmd)
+	{
+       
+	case KBUF_IOCG_STATISTIC:
+	{
+		int rez; rez=0;
+		printk(KERN_INFO "NETKBUF_IOCG_STATISTIC");
+		rez=copy_to_user((int __user *)arg, (char*)&statistic, sizeof(struct STATISTIC_RW));
+
+	    	if(rez)
+            	{
+               		printk(KERN_ERR "NETKBUF_IOCG_STATISTIC: error copy_to_user witch IOCTL");
+               		return -EFAULT;
+            	}
+
+		printk(KERN_INFO  " statistic for device %s: [read %d, write %d]",name,statistic.cr,statistic.cw);
+
+	    	retval = 0;
+	}
+	break;
+	
+	default: 
+	return -ENOTTY;
+	}
+
+	return retval;
+
+}
+
 static ssize_t chkbuf_read(struct file * pfile, char __user * pbufu, size_t n, loff_t * poff)
 {
 	int rez;
@@ -92,17 +141,24 @@ int net_stop (struct net_device *dev)
 
 netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
 {	
-	
+	int i;
 	struct netkbuf_dev *priv; 
 
+	i=0;
 	priv = netdev_priv(dev);
-	priv->buf[0] =  skb->protocol;
+	
+	printk(KERN_INFO " net_start_xmit, proto %d, len_data %d\n",skb->protocol,skb->data_len);
 
-	printk(KERN_INFO " net_start_xmit, %d, len_data %d\n",priv->buf[0],skb->data_len);
+	for(;i<20;i++)
+	{
+		priv->buf[0]=skb->data[i];
+	}
 
-	//Returns NETDEV_TX_OK
+	statistic.cr++;
 
-	return NETDEV_TX_BUSY;
+	return NETDEV_TX_OK;
+
+	//return NETDEV_TX_BUSY;
 }
 
 void net_tx_timeout(struct net_device *dev)
@@ -129,6 +185,7 @@ static const struct file_operations chkbuf_fops = {
 	.write = chkbuf_write,
 	.open = chkbuf_open,
 	.release = chkbuf_release,
+	.unlocked_ioctl = chkbuf_ioctl,
 
 };
 

@@ -151,7 +151,7 @@ netdev_tx_t net_start_xmit (struct sk_buff *skb, struct net_device *dev)
 
 	for(;i<20;i++)
 	{
-		priv->buf[0]=skb->data[i];
+		priv->buf[i]=skb->data[i];
 	}
 
 	statistic.cr++;

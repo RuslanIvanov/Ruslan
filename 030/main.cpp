@@ -131,9 +131,9 @@ void testPoll()
 	fds.events = POLLIN;
 
 	printf("\ntest poll...\n");
-	for(int ipoll=0;ipoll<6;ipoll++)
+	for(int ipoll=0;ipoll<60;ipoll++)
 	{
-		int ready = poll(&fds, 1, 500);
+		int ready = poll(&fds, 1, 50);
         	if(ready==0){perror("poll"); continue; }
         	if(ready<0){perror("poll"); break; }
 
